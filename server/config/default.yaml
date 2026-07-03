@@ -1,0 +1,71 @@
+app:
+  name: "Damini Marketplace Server"
+  version: "1.0.0"
+  env: "development"
+  port: 5000
+  clientUrl: "http://localhost:5173"
+  vendorUrl: "http://localhost:5174"
+  adminUrl: "http://localhost:5175"
+  adsUrl: "http://localhost:5176"
+  uploadDir: "uploads"
+  maxFileSize: 5242880  # 5MB
+
+database:
+  host: "localhost"
+  port: 3302
+  name: "damini_marketplace"
+  user: "root"
+  password: "synoize"
+  connectionLimit: 10
+  charset: "utf8mb4"
+
+jwt:
+  accessSecret: "damini_access_secret_change_in_production"
+  refreshSecret: "damini_refresh_secret_change_in_production"
+  accessExpiry: "15m"
+  refreshExpiry: "7d"
+  cookieMaxAge: 604800000  # 7 days in ms
+
+otp:
+  expiry: 600  # 10 minutes in seconds
+  length: 6
+
+bcrypt:
+  rounds: 12
+
+rateLimit:
+  windowMs: 900000  # 15 minutes
+  max: 100
+  authMax: 5
+
+mail:
+  host: "smtp.gmail.com"
+  port: 587
+  secure: false
+  user: "your-email@gmail.com"
+  password: "your-app-password"
+  from: "Damini Marketplace <no-reply@damini.com>"
+
+razorpay:
+  keyId: "rzp_test_xxxxxxxxxxxx"
+  keySecret: "your_razorpay_secret"
+  webhookSecret: "your_webhook_secret"
+
+shiprocket:
+  email: "your-shiprocket-email@example.com"
+  password: "your-shiprocket-password"
+  channelId: ""
+  baseUrl: "https://apiv2.shiprocket.in/v1/external"
+
+commission:
+  defaultRate: 5  # 5% platform commission
+
+referral:
+  rewardAmount: 100  # ₹100 per successful referral
+
+cors:
+  origins:
+    - "http://localhost:5173"
+    - "http://localhost:5174"
+    - "http://localhost:5175"
+    - "http://localhost:5176"

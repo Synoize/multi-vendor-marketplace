@@ -1,0 +1,13 @@
+app:
+  env: "production"
+  port: 5000
+
+rateLimit:
+  max: 60
+
+cors:
+  origins:
+    - "https://damini.com"
+    - "https://vendor.damini.com"
+    - "https://admin.damini.com"
+    - "https://ads.damini.com"

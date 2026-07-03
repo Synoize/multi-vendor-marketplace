@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 213 31% 91%;
+    --card: 222 47% 8%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 221 90% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 20 97% 54%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 223 47% 11%;
+    --accent-foreground: 213 31% 91%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --ring: 221 90% 55%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-[#080B12] text-foreground font-sans antialiased; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-white/10 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-white/20; }
+}
+
+@layer components {
+  .glass-card { @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl; }
+  .sidebar-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer; }
+  .sidebar-item-active { @apply bg-blue-600/20 text-blue-400 border border-blue-500/20; }
+  .sidebar-item-inactive { @apply text-gray-400 hover:text-white hover:bg-white/5; }
+  .btn-primary { @apply bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2; }
+  .btn-ghost { @apply bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 border border-white/10; }
+  .input-dark { @apply bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200; }
+  .skeleton { @apply bg-white/5 rounded-xl animate-pulse; }
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line { stroke: rgba(255,255,255,0.05); }
+.recharts-text { fill: #9CA3AF !important; font-size: 12px; }

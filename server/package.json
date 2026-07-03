@@ -1,0 +1,39 @@
+{
+  "name": "damini-server",
+  "version": "1.0.0",
+  "description": "Damini Marketplace - Backend API Server",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:migrate": "node src/database/migrate.js",
+    "db:seed": "node src/database/seed.js",
+    "db:fresh": "node src/database/fresh.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "bcryptjs": "^2.4.3",
+    "config": "^3.3.11",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "csurf": "^1.11.0",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.2.0",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.9.2",
+    "nodemailer": "^6.9.10",
+    "razorpay": "^2.9.2",
+    "sharp": "^0.33.2",
+    "socket.io": "^4.7.4",
+    "uuid": "^9.0.1",
+    "winston": "^3.12.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

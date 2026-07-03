@@ -1,0 +1,236 @@
+/* ============================================
+   Damini Customer App - Global Styles
+   ============================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Custom Properties for Shadcn */
+@layer base {
+  :root {
+    --background: 220 14% 96%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 91% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 20 95% 54%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 48 100% 56%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 56%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 20 95% 54%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 48 100% 56%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-damini-bg text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+}
+
+/* ============================================
+   Damini Custom Components
+   ============================================ */
+@layer components {
+  /* Shimmer Skeleton */
+  .skeleton {
+    @apply relative overflow-hidden bg-gray-200 rounded;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Damini Button Variants */
+  .btn-primary {
+    @apply bg-damini-orange text-white font-semibold px-6 py-3 rounded-sm 
+           hover:bg-orange-600 active:scale-95 transition-all duration-150 
+           shadow-md hover:shadow-lg;
+  }
+  .btn-secondary {
+    @apply bg-white text-damini-blue border border-damini-blue font-semibold 
+           px-6 py-3 rounded-sm hover:bg-blue-50 active:scale-95 
+           transition-all duration-150;
+  }
+  .btn-ghost {
+    @apply text-damini-blue font-medium px-4 py-2 rounded 
+           hover:bg-blue-50 transition-colors;
+  }
+
+  /* Product Card */
+  .product-card {
+    @apply bg-white rounded-sm border border-gray-100 overflow-hidden cursor-pointer
+           transition-all duration-300 hover:shadow-product-card-hover hover:-translate-y-1;
+  }
+
+  /* Category Pill */
+  .category-pill {
+    @apply flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer
+           hover:bg-blue-50 transition-colors group;
+  }
+
+  /* Price Display */
+  .price-main {
+    @apply text-xl font-bold text-gray-900;
+  }
+  .price-mrp {
+    @apply text-sm text-gray-500 line-through;
+  }
+  .price-discount {
+    @apply text-sm font-medium text-green-600;
+  }
+
+  /* Section Header */
+  .section-header {
+    @apply flex items-center justify-between mb-4;
+  }
+  .section-title {
+    @apply text-xl font-bold text-gray-900;
+  }
+  .section-link {
+    @apply text-damini-blue text-sm font-medium hover:underline;
+  }
+
+  /* Assured Badge */
+  .assured-badge {
+    @apply inline-flex items-center gap-1 bg-gradient-to-r from-blue-600 to-blue-700 
+           text-white text-xs font-bold px-2 py-0.5 rounded-sm;
+  }
+
+  /* Star Rating */
+  .star-rating {
+    @apply inline-flex items-center gap-1 bg-green-600 text-white text-xs 
+           font-bold px-1.5 py-0.5 rounded;
+  }
+
+  /* Navbar */
+  .navbar-link {
+    @apply text-white/90 hover:text-white text-sm font-medium 
+           transition-colors cursor-pointer;
+  }
+
+  /* Form Input */
+  .form-input {
+    @apply w-full border border-gray-300 rounded px-3 py-2.5 text-sm
+           focus:outline-none focus:border-damini-blue focus:ring-1 focus:ring-damini-blue
+           transition-colors;
+  }
+
+  /* Scrollbar */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Glass card */
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-xl;
+  }
+}
+
+/* ============================================
+   Swiper Overrides
+   ============================================ */
+.swiper-pagination-bullet {
+  background: white !important;
+  opacity: 0.6 !important;
+}
+.swiper-pagination-bullet-active {
+  opacity: 1 !important;
+  transform: scale(1.2);
+}
+.swiper-button-next,
+.swiper-button-prev {
+  color: #2874F0 !important;
+  background: white;
+  border-radius: 50%;
+  width: 36px !important;
+  height: 36px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.swiper-button-next::after,
+.swiper-button-prev::after {
+  font-size: 14px !important;
+  font-weight: bold;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Countdown flip */
+.countdown-digit {
+  @apply relative inline-flex items-center justify-center 
+         bg-gray-900 text-white font-bold text-2xl rounded 
+         w-12 h-14 select-none;
+  perspective: 100px;
+}
+
+/* Page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
