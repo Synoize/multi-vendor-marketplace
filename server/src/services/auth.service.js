@@ -71,15 +71,15 @@ const registerUser = async ({ name, email, phone, password, referralCode }) => {
 };
 
 /**
- * Verify email OTP
+ * Verify email OTP and directly log in
  */
 const verifyEmail = async (email, otp) => {
   const user = await queryOne(
-    'SELECT id, name, otp, otp_expires, is_verified FROM users WHERE email = ?',
+    'SELECT id, name, email, role, otp, otp_expires, is_active, is_verified FROM users WHERE email = ?',
     [email]
   );
   if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
-  if (user.is_verified) throw Object.assign(new Error('Email already verified'), { statusCode: 400 });
+  if (!user.is_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
   if (!user.otp || user.otp !== otp) throw Object.assign(new Error('Invalid OTP'), { statusCode: 400 });
   if (new Date() > new Date(user.otp_expires)) throw Object.assign(new Error('OTP has expired. Please request a new one.'), { statusCode: 400 });
 
@@ -90,30 +90,10 @@ const verifyEmail = async (email, otp) => {
 
   try { await emailService.sendWelcomeEmail(email, user.name); } catch (e) {}
 
-  return { message: 'Email verified successfully. You can now log in.' };
-};
-
-/**
- * Login user
- */
-const loginUser = async (email, password) => {
-  const user = await queryOne(
-    'SELECT id, name, email, phone, avatar, role, is_active, is_verified, password_hash FROM users WHERE email = ?',
-    [email]
-  );
-
-  if (!user) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
-  if (!user.is_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
-  if (!user.is_verified) throw Object.assign(new Error('Please verify your email before logging in.'), { statusCode: 403 });
-
-  const isMatch = await bcrypt.compare(password, user.password_hash);
-  if (!isMatch) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
-
   const payload = { id: user.id, email: user.email, role: user.role };
   const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
-  // Store refresh token hash
   const tokenHash = await bcrypt.hash(refreshToken, 8);
   const expires = new Date(Date.now() + config.get('jwt.cookieMaxAge'));
   await query(
@@ -121,11 +101,79 @@ const loginUser = async (email, password) => {
     [user.id, tokenHash, expires]
   );
 
-  // Update last login
   await query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
 
-  const { password_hash, ...safeUser } = user;
-  return { accessToken, refreshToken, user: safeUser };
+  return { accessToken, refreshToken, user: { id: user.id, name: user.name, email: user.email, role: user.role }, message: 'Login successful' };
+};
+
+/**
+ * Login user (Send OTP if password absent, authenticate directly if password present)
+ */
+const loginUser = async (email, password) => {
+  let user = await queryOne('SELECT id, name, email, role, is_active, is_verified, password_hash FROM users WHERE email = ?', [email]);
+  
+  if (!user) {
+    if (password) {
+      throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
+    }
+    
+    // Automatically register new user for passwordless
+    const name = email.split('@')[0];
+    const passwordHash = await bcrypt.hash(Math.random().toString(36), BCRYPT_ROUNDS);
+    const myReferralCode = generateReferralCode();
+    
+    await transaction(async (conn) => {
+      await conn.execute(
+        `INSERT INTO users (name, email, password_hash, referral_code, role, is_verified)
+         VALUES (?, ?, ?, ?, 'customer', 0)`,
+        [name, email, passwordHash, myReferralCode]
+      );
+      
+      const [newUser] = await conn.execute('SELECT id FROM users WHERE email = ?', [email]);
+      const userId = newUser[0].id;
+      await conn.execute('INSERT INTO wallets (user_id, balance) VALUES (?, 0)', [userId]);
+    });
+    
+    user = await queryOne('SELECT id, name, email, role, is_active, is_verified, password_hash FROM users WHERE email = ?', [email]);
+  }
+
+  if (!user.is_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
+
+  // If password is provided, do direct password authentication (for admin/vendor panel)
+  if (password) {
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
+
+    const payload = { id: user.id, email: user.email, role: user.role };
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+
+    const tokenHash = await bcrypt.hash(refreshToken, 8);
+    const expires = new Date(Date.now() + config.get('jwt.cookieMaxAge'));
+    await query(
+      'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+      [user.id, tokenHash, expires]
+    );
+
+    await query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+
+    return { accessToken, refreshToken, user: { id: user.id, name: user.name, email: user.email, role: user.role }, directLogin: true };
+  }
+
+  // Passwordless OTP generation
+  const otp = generateOTP(6);
+  const otpExpires = new Date(Date.now() + OTP_EXPIRY_SEC * 1000);
+  await query('UPDATE users SET otp = ?, otp_expires = ? WHERE id = ?', [otp, otpExpires, user.id]);
+
+  logger.info(`🔑 OTP for ${email} is: ${otp}`);
+
+  try {
+    await emailService.sendOTPEmail(email, user.name, otp);
+  } catch (e) {
+    logger.error('Failed to send OTP email:', e.message);
+  }
+
+  return { email, message: 'OTP sent to your email.' };
 };
 
 /**
@@ -204,6 +252,7 @@ const resendOTP = async (email) => {
   const otp = generateOTP(6);
   const otpExpires = new Date(Date.now() + OTP_EXPIRY_SEC * 1000);
   await query('UPDATE users SET otp = ?, otp_expires = ? WHERE id = ?', [otp, otpExpires, user.id]);
+  logger.info(`🔑 OTP for ${email} is: ${otp}`);
   try { await emailService.sendOTPEmail(email, user.name, otp); } catch (e) {}
   return { message: 'New OTP sent to your email.' };
 };

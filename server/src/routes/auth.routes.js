@@ -11,18 +11,14 @@ const { z } = require('zod');
 
 const router = express.Router();
 
-// Validation schemas
 const registerSchema = z.object({
-  name: z.string().min(2).max(100),
   email: z.string().email(),
-  phone: z.string().regex(/^[6-9]\d{9}$/).optional(),
-  password: z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])/, 'Password must contain uppercase, lowercase, number and special character'),
   referralCode: z.string().optional(),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().optional(),
 });
 
 const otpSchema = z.object({

@@ -221,7 +221,7 @@ export default function Products() {
               <select value={currentSort} onChange={e => applySort(e.target.value)}
                 className="border border-gray-200 rounded px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-[#2874F0]">
                 {SORT_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  <option key={opt.label} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
 

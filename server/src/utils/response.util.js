@@ -40,16 +40,47 @@ const sendError = (res, message = 'Something went wrong', statusCode = 500, erro
 /**
  * Send paginated response
  */
-const sendPaginated = (res, { data, total, page, limit, message = 'Success' }) => {
+const sendPaginated = (res, options) => {
+  let { data, total, page, limit, message = 'Success' } = options;
+
+  // 1. Extract array data from common keys if not provided directly in 'data'
+  const arrayData = data || options.products || options.orders || options.notifications || options.vendors || options.users || options.returns || options.shipments || [];
+
+  // 2. Build the data object format (e.g. for customer store queries)
+  const dataObject = {
+    products: options.products,
+    orders: options.orders,
+    notifications: options.notifications,
+    vendors: options.vendors,
+    users: options.users,
+    returns: options.returns,
+    total,
+  };
+
+  // Filter out undefined attributes
+  Object.keys(dataObject).forEach(key => {
+    if (dataObject[key] === undefined) delete dataObject[key];
+  });
+
+  // Use the wrapper object if multiple keys exist, otherwise fall back to raw array data
+  const finalData = data || (Object.keys(dataObject).length > 1 ? dataObject : arrayData);
+
   return res.status(200).json({
     success: true,
     message,
-    data,
+    data: finalData,
+    total,
+    ...(options.products && { products: options.products }),
+    ...(options.orders && { orders: options.orders }),
+    ...(options.notifications && { notifications: options.notifications }),
+    ...(options.vendors && { vendors: options.vendors }),
+    ...(options.users && { users: options.users }),
+    ...(options.returns && { returns: options.returns }),
     pagination: {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / (limit || 20)) || 1,
       hasNextPage: page * limit < total,
       hasPrevPage: page > 1,
     },

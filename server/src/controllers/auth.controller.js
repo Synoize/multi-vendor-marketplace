@@ -9,15 +9,16 @@ const authService = require('../services/auth.service');
 
 /** POST /auth/register */
 const register = asyncHandler(async (req, res) => {
-  const result = await authService.registerUser(req.body);
+  const result = await authService.loginUser(req.body.email);
   sendCreated(res, null, result.message);
 });
 
 /** POST /auth/verify-email */
 const verifyEmail = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
-  const result = await authService.verifyEmail(email, otp);
-  sendSuccess(res, null, result.message);
+  const { accessToken, refreshToken, user, message } = await authService.verifyEmail(email, otp);
+  setAuthCookies(res, accessToken, refreshToken);
+  sendSuccess(res, { user, accessToken }, message);
 });
 
 /** POST /auth/resend-otp */
@@ -30,9 +31,13 @@ const resendOTP = asyncHandler(async (req, res) => {
 /** POST /auth/login */
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  const { accessToken, refreshToken, user } = await authService.loginUser(email, password);
-  setAuthCookies(res, accessToken, refreshToken);
-  sendSuccess(res, { user, accessToken }, 'Login successful');
+  const result = await authService.loginUser(email, password);
+  if (result.directLogin) {
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+    sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 'Login successful');
+  } else {
+    sendSuccess(res, null, result.message);
+  }
 });
 
 /** POST /auth/forgot-password */
