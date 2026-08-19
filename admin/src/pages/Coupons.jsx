@@ -4,32 +4,36 @@ import api from '../lib/axios'
 import { toast } from 'sonner'
 import Spinner from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
-import { Tag, Plus, ToggleLeft, ToggleRight, Trash2, Edit } from 'lucide-react'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import DataTable from '../components/ui/DataTable'
+import { Tag, Plus, ToggleLeft, ToggleRight, Trash2, Edit, Download } from 'lucide-react'
 
 export default function Coupons() {
   const queryClient = useQueryClient()
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const [form, setForm] = useState({
     code: '',
-    discount_type: 'flat',
+    title: '',
+    type: 'fixed',
     discount_value: '',
     min_order_amount: '',
-    max_discount_amount: '',
-    user_limit: '1',
-    expires_at: '',
+    max_discount: '',
+    max_uses: '',
+    max_uses_per_user: '1',
+    valid_from: '',
+    valid_to: '',
   })
 
-  // Fetch coupons
   const { data: coupons = [], isLoading } = useQuery({
     queryKey: ['admin-coupons'],
     queryFn: async () => {
       const res = await api.get('/coupons')
-      return res.data.data || []
+      return res.data.data?.items || res.data.data || []
     }
   })
 
-  // Create/Update mutation
   const saveMutation = useMutation({
     mutationFn: async (payload) => {
       if (editingCoupon) {
@@ -48,7 +52,6 @@ export default function Coupons() {
     }
   })
 
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
       return api.delete(`/coupons/${id}`)
@@ -62,7 +65,6 @@ export default function Coupons() {
     }
   })
 
-  // Toggle active mutation
   const toggleMutation = useMutation({
     mutationFn: async (id) => {
       return api.patch(`/coupons/${id}/toggle`)
@@ -79,12 +81,15 @@ export default function Coupons() {
   const resetForm = () => {
     setForm({
       code: '',
-      discount_type: 'flat',
+      title: '',
+      type: 'fixed',
       discount_value: '',
       min_order_amount: '',
-      max_discount_amount: '',
-      user_limit: '1',
-      expires_at: '',
+      max_discount: '',
+      max_uses: '',
+      max_uses_per_user: '1',
+      valid_from: '',
+      valid_to: '',
     })
     setEditingCoupon(null)
     setShowAddModal(false)
@@ -93,13 +98,16 @@ export default function Coupons() {
   const handleEdit = (coupon) => {
     setEditingCoupon(coupon)
     setForm({
-      code: coupon.code,
-      discount_type: coupon.discount_type,
-      discount_value: coupon.discount_value,
-      min_order_amount: coupon.min_order_amount,
-      max_discount_amount: coupon.max_discount_amount || '',
-      user_limit: coupon.user_limit,
-      expires_at: coupon.expires_at ? coupon.expires_at.split('T')[0] : '',
+      code: coupon.code || '',
+      title: coupon.title || '',
+      type: coupon.type || 'fixed',
+      discount_value: coupon.discount_value || '',
+      min_order_amount: coupon.min_order_amount || '',
+      max_discount: coupon.max_discount || '',
+      max_uses: coupon.max_uses || '',
+      max_uses_per_user: coupon.max_uses_per_user || '1',
+      valid_from: coupon.valid_from ? coupon.valid_from.split('T')[0] : '',
+      valid_to: coupon.valid_to ? coupon.valid_to.split('T')[0] : '',
     })
     setShowAddModal(true)
   }
@@ -107,30 +115,139 @@ export default function Coupons() {
   const handleSubmit = (e) => {
     e.preventDefault()
     saveMutation.mutate({
-      ...form,
+      code: form.code,
+      title: form.title || form.code,
+      type: form.type,
       discount_value: parseFloat(form.discount_value),
-      min_order_amount: parseFloat(form.min_order_amount),
-      max_discount_amount: form.max_discount_amount ? parseFloat(form.max_discount_amount) : null,
-      user_limit: parseInt(form.user_limit),
+      min_order_amount: form.min_order_amount ? parseFloat(form.min_order_amount) : null,
+      max_discount: form.max_discount ? parseFloat(form.max_discount) : null,
+      max_uses: form.max_uses ? parseInt(form.max_uses) : null,
+      max_uses_per_user: parseInt(form.max_uses_per_user) || 1,
+      valid_from: form.valid_from || new Date().toISOString().slice(0, 19).replace('T', ' '),
+      valid_to: form.valid_to || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' '),
     })
   }
 
-  const handleDelete = (id) => {
-    if (confirm('Are you sure you want to delete this coupon?')) {
-      deleteMutation.mutate(id)
-    }
+  const handleDelete = (coupon) => {
+    setDeleteTarget(coupon)
   }
+
+  const handleExport = (rows) => {
+    const headers = ['Code', 'Type', 'Value', 'Min Spend', 'Uses', 'Expiry', 'Status']
+    const csvRows = rows.map((row) => [
+      row.code,
+      row.type,
+      row.type === 'percentage' ? `${row.discount_value}%` : `₹${row.discount_value}`,
+      `₹${row.min_order_amount || '—'}`,
+      `${row.used_count || 0}${row.max_uses ? ` / ${row.max_uses}` : ''}`,
+      row.valid_to ? new Date(row.valid_to).toLocaleDateString('en-IN') : 'Never',
+      row.is_active ? 'Active' : 'Inactive',
+    ])
+    const csv = [headers, ...csvRows].map((r) => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'coupons.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const columns = [
+    {
+      key: 'code',
+      label: 'Coupon Code',
+      render: (val) => (
+        <span className="font-mono font-bold text-red-500 uppercase">{val}</span>
+      ),
+    },
+    {
+      key: 'type',
+      label: 'Discount Type',
+      render: (val) => <span className="capitalize">{val}</span>,
+    },
+    {
+      key: 'discount_value',
+      label: 'Value',
+      render: (val, row) => (
+        <span className="font-bold">
+          {row.type === 'percentage' ? `${val}%` : `₹${val}`}
+        </span>
+      ),
+    },
+    {
+      key: 'min_order_amount',
+      label: 'Min Spend',
+      render: (val) => <span className="text-gray-500">₹{val || '—'}</span>,
+    },
+    {
+      key: 'id',
+      label: 'Uses',
+      render: (val, row) => (
+        <span className="text-xs text-gray-500">
+          Used: <span className="font-bold text-gray-900">{row.used_count || 0}</span>
+          {row.max_uses ? <span className="text-gray-400"> / {row.max_uses}</span> : null}
+        </span>
+      ),
+    },
+    {
+      key: 'valid_to',
+      label: 'Expiry',
+      render: (val) => (
+        <span className="text-xs text-gray-500">
+          {val ? new Date(val).toLocaleDateString('en-IN') : 'Never'}
+        </span>
+      ),
+    },
+    {
+      key: 'is_active',
+      label: 'Status',
+      render: (val, row) => (
+        <button onClick={() => toggleMutation.mutate(row.id)}>
+          {val ? (
+            <ToggleRight className="h-7 w-7 text-green-500" />
+          ) : (
+            <ToggleLeft className="h-7 w-7 text-gray-400" />
+          )}
+        </button>
+      ),
+    },
+    {
+      key: 'id',
+      label: 'Actions',
+      sortable: false,
+      render: (val, row) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => handleEdit(row)}
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-xl transition-colors"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDelete(row)}
+            className="text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const inputClass = "w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-red-300 focus:ring-2 focus:ring-red-50 focus:outline-none"
+  const labelClass = "block text-sm font-semibold text-gray-700 mb-1"
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Coupon Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Coupon Management</h1>
           <p className="text-gray-500 text-sm">Create and configure platform promotional discount coupons</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowAddModal(true) }}
-          className="flex items-center gap-1.5 bg-[#2874F0] hover:bg-[#1a5de0] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="h-4 w-4" /> Add Coupon
         </button>
@@ -145,169 +262,160 @@ export default function Coupons() {
           description="Promotional discount coupons will appear here."
         />
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase">
-                  <th className="p-4">Coupon Code</th>
-                  <th className="p-4">Discount Type</th>
-                  <th className="p-4">Value</th>
-                  <th className="p-4">Min Spend</th>
-                  <th className="p-4">Uses</th>
-                  <th className="p-4">Expiry</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-                {coupons.map(coupon => (
-                  <tr key={coupon.id} className="hover:bg-gray-50/50">
-                    <td className="p-4 font-mono font-bold text-[#2874F0] uppercase">{coupon.code}</td>
-                    <td className="p-4 capitalize">{coupon.discount_type}</td>
-                    <td className="p-4 font-bold text-gray-900">
-                      {coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : `₹${coupon.discount_value}`}
-                    </td>
-                    <td className="p-4 text-gray-500">₹{coupon.min_order_amount}</td>
-                    <td className="p-4 text-xs text-gray-500">
-                      Used: <span className="font-bold text-gray-800">{coupon.used_count || 0}</span>
-                    </td>
-                    <td className="p-4 text-xs text-gray-500">
-                      {coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString('en-IN') : 'Never'}
-                    </td>
-                    <td className="p-4">
-                      <button onClick={() => toggleMutation.mutate(coupon.id)}>
-                        {coupon.is_active ? (
-                          <ToggleRight className="h-7 w-7 text-green-500" />
-                        ) : (
-                          <ToggleLeft className="h-7 w-7 text-gray-400" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(coupon)}
-                          className="bg-blue-50 text-[#2874F0] hover:bg-blue-100 p-2 rounded-lg transition-colors"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(coupon.id)}
-                          className="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          columns={columns}
+          data={coupons}
+          loading={isLoading}
+          emptyMessage="No coupons found"
+          enableSearch
+          enableExport
+          enableColumnVisibility
+          enablePagination
+          renderTopToolbarCustomActions={({ data: tableData }) => (
+            <button
+              onClick={() => handleExport(tableData)}
+              className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+          )}
+        />
       )}
 
-      {/* Add/Edit Coupon Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 animate-zoom-in overflow-y-auto max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="font-bold text-gray-900 text-lg mb-4">
               {editingCoupon ? 'Edit Coupon' : 'Create New Coupon'}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Coupon Code *</label>
+                  <label className={labelClass}>Coupon Code *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. WELCOME100"
                     value={form.code}
                     onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0] uppercase font-mono font-bold"
+                    className={inputClass + " uppercase font-mono font-bold"}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Discount Type *</label>
-                  <select
-                    value={form.discount_type}
-                    onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0]"
-                  >
-                    <option value="flat">Flat Cash Discount</option>
-                    <option value="percent">Percentage Discount</option>
-                  </select>
+                  <label className={labelClass}>Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Welcome Discount"
+                    value={form.title}
+                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                    className={inputClass}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Discount Value *</label>
+                  <label className={labelClass}>Discount Type *</label>
+                  <select
+                    value={form.type}
+                    onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="fixed">Fixed Amount (₹)</option>
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="free_shipping">Free Shipping</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Discount Value *</label>
                   <input
                     type="number"
                     required
                     value={form.discount_value}
                     onChange={e => setForm(f => ({ ...f, discount_value: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Min Spend Required (₹) *</label>
-                  <input
-                    type="number"
-                    required
-                    value={form.min_order_amount}
-                    onChange={e => setForm(f => ({ ...f, min_order_amount: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0]"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Max Discount Amount (₹)</label>
+                  <label className={labelClass}>Min Order Amount (₹)</label>
                   <input
                     type="number"
-                    value={form.max_discount_amount}
-                    onChange={e => setForm(f => ({ ...f, max_discount_amount: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0]"
+                    value={form.min_order_amount}
+                    onChange={e => setForm(f => ({ ...f, min_order_amount: e.target.value }))}
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">User Max Uses *</label>
+                  <label className={labelClass}>Max Discount (₹)</label>
                   <input
                     type="number"
-                    required
-                    value={form.user_limit}
-                    onChange={e => setForm(f => ({ ...f, user_limit: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0]"
+                    value={form.max_discount}
+                    onChange={e => setForm(f => ({ ...f, max_discount: e.target.value }))}
+                    className={inputClass}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Expiry Date</label>
-                <input
-                  type="date"
-                  value={form.expires_at}
-                  onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2874F0]"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Max Total Uses</label>
+                  <input
+                    type="number"
+                    value={form.max_uses}
+                    onChange={e => setForm(f => ({ ...f, max_uses: e.target.value }))}
+                    placeholder="Unlimited"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Max Uses Per User *</label>
+                  <input
+                    type="number"
+                    required
+                    value={form.max_uses_per_user}
+                    onChange={e => setForm(f => ({ ...f, max_uses_per_user: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Valid From</label>
+                  <input
+                    type="date"
+                    value={form.valid_from}
+                    onChange={e => setForm(f => ({ ...f, valid_from: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Valid To</label>
+                  <input
+                    type="date"
+                    value={form.valid_to}
+                    onChange={e => setForm(f => ({ ...f, valid_to: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saveMutation.isPending}
-                  className="px-4 py-2 bg-[#2874F0] text-white rounded-lg text-sm font-semibold hover:bg-[#1a5de0]"
+                  className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
                 >
                   {saveMutation.isPending ? 'Saving...' : 'Save Coupon'}
                 </button>
@@ -316,6 +424,20 @@ export default function Coupons() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          deleteMutation.mutate(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+        loading={deleteMutation.isPending}
+        title="Delete Coupon"
+        message={`Are you sure you want to delete coupon "${deleteTarget?.code}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   )
 }

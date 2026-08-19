@@ -16,9 +16,16 @@ const notificationService = require('../services/notification.service');
 const bannerRouter = express.Router();
 
 bannerRouter.get('/', asyncHandler(async (req, res) => {
-  const { position } = req.query;
-  const where = position ? 'WHERE position = ? AND is_active = 1' : 'WHERE is_active = 1';
-  const params = position ? [position] : [];
+  const { position, all } = req.query;
+  let where;
+  const params = [];
+  if (all === '1') {
+    where = position ? 'WHERE position = ?' : '';
+    if (position) params.push(position);
+  } else {
+    where = position ? 'WHERE position = ? AND is_active = 1' : 'WHERE is_active = 1';
+    if (position) params.push(position);
+  }
   const banners = await queryRows(`SELECT * FROM banners ${where} ORDER BY sort_order`, params);
   sendSuccess(res, banners);
 }));
@@ -57,7 +64,9 @@ bannerRouter.delete('/:id', protect, requireRole('admin'), asyncHandler(async (r
 const videoRouter = express.Router();
 
 videoRouter.get('/', asyncHandler(async (req, res) => {
-  const videos = await queryRows('SELECT * FROM videos WHERE is_active = 1 ORDER BY sort_order');
+  const { all } = req.query;
+  const where = all === '1' ? '' : 'WHERE is_active = 1';
+  const videos = await queryRows(`SELECT * FROM videos ${where} ORDER BY sort_order`);
   sendSuccess(res, videos);
 }));
 
@@ -246,11 +255,11 @@ notificationRouter.delete('/:id', asyncHandler(async (req, res) => {
 const supportRouter = express.Router();
 
 supportRouter.post('/tickets', protect, asyncHandler(async (req, res) => {
-  const { subject, category, orderId, message } = req.body;
+  const { subject, category, orderId, message, priority } = req.body;
   const ticketId = uuidv4();
   await query(
-    "INSERT INTO support_tickets (id, user_id, order_id, subject, category, status) VALUES (?, ?, ?, ?, ?, 'open')",
-    [ticketId, req.user.id, orderId || null, subject, category || 'other']
+    "INSERT INTO support_tickets (id, user_id, order_id, subject, category, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'open')",
+    [ticketId, req.user.id, orderId || null, subject, category || 'other', priority || 'medium']
   );
   if (message) {
     await query(
@@ -302,6 +311,18 @@ supportRouter.post('/tickets/:id/reply', protect, asyncHandler(async (req, res) 
   );
   if (req.user.role === 'admin') {
     await query("UPDATE support_tickets SET status = 'in_progress' WHERE id = ? AND status = 'open'", [req.params.id]);
+    const ticket = await queryOne('SELECT user_id, subject FROM support_tickets WHERE id = ?', [req.params.id]);
+    if (ticket && ticket.user_id !== req.user.id) {
+      try {
+        await notificationService.createNotification(ticket.user_id, {
+          title: 'Support Replied',
+          message: `Support responded to your ticket "${ticket.subject}".`,
+          type: 'system',
+          referenceId: req.params.id,
+          referenceType: 'support',
+        });
+      } catch (e) {}
+    }
   }
   sendCreated(res, null, 'Reply sent');
 }));
@@ -355,4 +376,16 @@ reportRouter.get('/ads', asyncHandler(async (req, res) => {
   sendSuccess(res, data);
 }));
 
-module.exports = { bannerRouter, videoRouter, adsRouter, notificationRouter, supportRouter, reportRouter };
+// ─── FESTIVAL SALE ROUTES (Public) ────────────────────────────────────────────
+const festivalRouter = express.Router();
+
+festivalRouter.get('/active', asyncHandler(async (req, res) => {
+  const sales = await queryRows(
+    `SELECT * FROM festival_sales
+     WHERE is_active = 1 AND starts_at <= NOW() AND ends_at >= NOW()
+     ORDER BY starts_at DESC`
+  );
+  sendSuccess(res, sales);
+}));
+
+module.exports = { bannerRouter, videoRouter, adsRouter, notificationRouter, supportRouter, reportRouter, festivalRouter };

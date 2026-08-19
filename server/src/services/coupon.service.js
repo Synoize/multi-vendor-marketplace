@@ -259,9 +259,9 @@ async function updateCoupon(id, data) {
     const updates = [];
     const values = [];
     for (const key of allowed) {
-      if (key in data) {
+      if (key in data && data[key] !== undefined) {
         updates.push(`${key} = ?`);
-        values.push(data[key]);
+        values.push(data[key] ?? null);
       }
     }
 

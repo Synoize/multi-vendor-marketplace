@@ -9,6 +9,11 @@ const windowMs = config.get('rateLimit.windowMs');
 const max = config.get('rateLimit.max');
 const authMax = config.get('rateLimit.authMax');
 
+/** Paths that bypass rate limiting — public content served on every page load */
+const skipPaths = config.get('rateLimit.skipPaths') || [];
+const skip = (req) =>
+  skipPaths.some((prefix) => req.originalUrl.startsWith(`/api${prefix}`));
+
 const createRateLimiter = (options = {}) =>
   rateLimit({
     windowMs,
@@ -23,7 +28,7 @@ const createRateLimiter = (options = {}) =>
   });
 
 /** Global API rate limiter */
-const globalRateLimit = createRateLimiter({ max });
+const globalRateLimit = createRateLimiter({ max, skip });
 
 /** Strict limiter for auth routes */
 const authRateLimit = createRateLimiter({

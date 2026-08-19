@@ -7,8 +7,6 @@ const { protect } = require('../middlewares/auth.middleware');
 const { asyncHandler } = require('../middlewares/error.middleware');
 const { sendSuccess, sendError } = require('../utils/response.util');
 const { query, queryOne, queryRows } = require('../database/connection');
-const bcrypt = require('bcryptjs');
-const config = require('config');
 const { uploadAvatar } = require('../middlewares/upload.middleware');
 const { generateReferralCode } = require('../utils/sku.util');
 
@@ -38,7 +36,11 @@ router.put('/me/profile', protect, asyncHandler(async (req, res) => {
     'UPDATE users SET name = ?, phone = ?, updated_at = NOW() WHERE id = ?',
     [name, phone, req.user.id]
   );
-  sendSuccess(res, null, 'Profile updated successfully');
+  const user = await queryOne(
+    'SELECT id, name, email, phone, avatar, role, is_verified, referral_code, created_at FROM users WHERE id = ?',
+    [req.user.id]
+  );
+  sendSuccess(res, user, 'Profile updated successfully');
 }));
 
 /**
@@ -67,7 +69,7 @@ router.get('/me/addresses', protect, asyncHandler(async (req, res) => {
  * POST /users/me/addresses
  */
 router.post('/me/addresses', protect, asyncHandler(async (req, res) => {
-  const { name, phone, line1, line2, landmark, city, state, pincode, country, type, is_default } = req.body;
+  const { name, phone, email, line1, line2, landmark, city, state, pincode, country, type, is_default } = req.body;
   
   // If setting as default, unset previous default
   if (is_default) {
@@ -75,9 +77,9 @@ router.post('/me/addresses', protect, asyncHandler(async (req, res) => {
   }
 
   await query(
-    `INSERT INTO addresses (user_id, name, phone, line1, line2, landmark, city, state, pincode, country, type, is_default)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.user.id, name, phone, line1, line2 || null, landmark || null, city, state, pincode, country || 'India', type || 'home', is_default ? 1 : 0]
+    `INSERT INTO addresses (user_id, name, phone, email, line1, line2, landmark, city, state, pincode, country, type, is_default)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.user.id, name, phone, email || null, line1, line2 || null, landmark || null, city, state, pincode, country || 'India', type || 'home', is_default ? 1 : 0]
   );
   sendSuccess(res, null, 'Address added successfully');
 }));
@@ -86,21 +88,36 @@ router.post('/me/addresses', protect, asyncHandler(async (req, res) => {
  * PUT /users/me/addresses/:id
  */
 router.put('/me/addresses/:id', protect, asyncHandler(async (req, res) => {
-  const { name, phone, line1, line2, landmark, city, state, pincode, country, type, is_default } = req.body;
-  
-  // Verify ownership
-  const addr = await queryOne('SELECT id FROM addresses WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  // Verify ownership and load existing row so partial updates (e.g. setting
+  // default) don't wipe the other fields with undefined bind params.
+  const addr = await queryOne('SELECT * FROM addresses WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
   if (!addr) return sendError(res, 'Address not found', 404);
 
-  if (is_default) {
+  const b = req.body;
+  const merged = {
+    name: b.name ?? addr.name,
+    phone: b.phone ?? addr.phone,
+    email: b.email ?? addr.email,
+    line1: b.line1 ?? addr.line1,
+    line2: b.line2 ?? addr.line2,
+    landmark: b.landmark ?? addr.landmark,
+    city: b.city ?? addr.city,
+    state: b.state ?? addr.state,
+    pincode: b.pincode ?? addr.pincode,
+    country: b.country ?? addr.country,
+    type: b.type ?? addr.type,
+    is_default: b.is_default ?? !!addr.is_default,
+  };
+
+  if (merged.is_default) {
     await query('UPDATE addresses SET is_default = 0 WHERE user_id = ?', [req.user.id]);
   }
 
   await query(
-    `UPDATE addresses SET name=?, phone=?, line1=?, line2=?, landmark=?, city=?, state=?, pincode=?, 
+    `UPDATE addresses SET name=?, phone=?, email=?, line1=?, line2=?, landmark=?, city=?, state=?, pincode=?, 
      country=?, type=?, is_default=? WHERE id = ? AND user_id = ?`,
-    [name, phone, line1, line2 || null, landmark || null, city, state, pincode, 
-     country || 'India', type || 'home', is_default ? 1 : 0, req.params.id, req.user.id]
+    [merged.name, merged.phone, merged.email, merged.line1, merged.line2, merged.landmark, merged.city,
+     merged.state, merged.pincode, merged.country, merged.type, merged.is_default ? 1 : 0, req.params.id, req.user.id]
   );
   sendSuccess(res, null, 'Address updated');
 }));
@@ -148,21 +165,6 @@ router.get('/me/referral', protect, asyncHandler(async (req, res) => {
   );
 
   sendSuccess(res, { referralCode, stats });
-}));
-
-/**
- * POST /users/me/change-password
- */
-router.post('/me/change-password', protect, asyncHandler(async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-  const user = await queryOne('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
-  
-  const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-  if (!isMatch) return sendError(res, 'Current password is incorrect', 400);
-
-  const hash = await bcrypt.hash(newPassword, config.get('bcrypt.rounds'));
-  await query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.user.id]);
-  sendSuccess(res, null, 'Password changed successfully');
 }));
 
 /**

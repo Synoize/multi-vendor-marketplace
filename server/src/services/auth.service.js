@@ -14,6 +14,21 @@ const logger = require('../utils/logger.util');
 const BCRYPT_ROUNDS = config.get('bcrypt.rounds');
 const OTP_EXPIRY_SEC = config.get('otp.expiry');
 
+// Parse expiry string to ms for refresh_tokens.expires_at
+const expiryToMs = (expiry) => {
+  const match = expiry.match(/^(\d+)([smhd])$/);
+  if (!match) return 2 * 24 * 60 * 60 * 1000;
+  const val = parseInt(match[1], 10);
+  switch (match[2]) {
+    case 's': return val * 1000;
+    case 'm': return val * 60 * 1000;
+    case 'h': return val * 60 * 60 * 1000;
+    case 'd': return val * 24 * 60 * 60 * 1000;
+    default: return 2 * 24 * 60 * 60 * 1000;
+  }
+};
+const REFRESH_EXPIRY_MS = expiryToMs(config.get('jwt.refreshExpiry'));
+
 /**
  * Register a new user
  */
@@ -75,12 +90,12 @@ const registerUser = async ({ name, email, phone, password, referralCode }) => {
  */
 const verifyEmail = async (email, otp) => {
   const user = await queryOne(
-    'SELECT id, name, email, role, otp, otp_expires, is_active, is_verified FROM users WHERE email = ?',
+    'SELECT id, name, email, phone, avatar, role, otp, otp_expires, is_active, is_verified, referral_code FROM users WHERE email = ?',
     [email]
   );
   if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
   if (!user.is_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
-  if (!user.otp || user.otp !== otp) throw Object.assign(new Error('Invalid OTP'), { statusCode: 400 });
+  if (!user.otp || String(user.otp) !== String(otp)) throw Object.assign(new Error('Invalid OTP'), { statusCode: 400 });
   if (new Date() > new Date(user.otp_expires)) throw Object.assign(new Error('OTP has expired. Please request a new one.'), { statusCode: 400 });
 
   await query(
@@ -88,14 +103,16 @@ const verifyEmail = async (email, otp) => {
     [user.id]
   );
 
-  try { await emailService.sendWelcomeEmail(email, user.name); } catch (e) {}
+  if (!user.is_verified) {
+    try { await emailService.sendWelcomeEmail(email, user.name); } catch (e) {}
+  }
 
   const payload = { id: user.id, email: user.email, role: user.role };
   const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
   const tokenHash = await bcrypt.hash(refreshToken, 8);
-  const expires = new Date(Date.now() + config.get('jwt.cookieMaxAge'));
+  const expires = new Date(Date.now() + REFRESH_EXPIRY_MS);
   await query(
     'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
     [user.id, tokenHash, expires]
@@ -103,14 +120,28 @@ const verifyEmail = async (email, otp) => {
 
   await query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
 
-  return { accessToken, refreshToken, user: { id: user.id, name: user.name, email: user.email, role: user.role }, message: 'Login successful' };
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      role: user.role,
+      is_verified: user.is_verified,
+      referral_code: user.referral_code,
+    },
+    message: 'Login successful',
+  };
 };
 
 /**
  * Login user (Send OTP if password absent, authenticate directly if password present)
  */
 const loginUser = async (email, password) => {
-  let user = await queryOne('SELECT id, name, email, role, is_active, is_verified, password_hash FROM users WHERE email = ?', [email]);
+  let user = await queryOne('SELECT id, name, email, phone, avatar, role, is_active, is_verified, referral_code, password_hash FROM users WHERE email = ?', [email]);
   
   if (!user) {
     if (password) {
@@ -134,12 +165,20 @@ const loginUser = async (email, password) => {
       await conn.execute('INSERT INTO wallets (user_id, balance) VALUES (?, 0)', [userId]);
     });
     
-    user = await queryOne('SELECT id, name, email, role, is_active, is_verified, password_hash FROM users WHERE email = ?', [email]);
+    user = await queryOne('SELECT id, name, email, phone, avatar, role, is_active, is_verified, referral_code, password_hash FROM users WHERE email = ?', [email]);
   }
 
   if (!user.is_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
 
-  // If password is provided, do direct password authentication (for admin/vendor panel)
+  // Vendors use OTP-only login via the vendor portal (registered + approved only)
+  if (user.role === 'vendor') {
+    throw Object.assign(
+      new Error('Vendor login requires OTP verification through the vendor portal.'),
+      { statusCode: 403 }
+    );
+  }
+
+  // If password is provided, do direct password authentication (for admin panel)
   if (password) {
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
@@ -149,7 +188,7 @@ const loginUser = async (email, password) => {
     const refreshToken = generateRefreshToken(payload);
 
     const tokenHash = await bcrypt.hash(refreshToken, 8);
-    const expires = new Date(Date.now() + config.get('jwt.cookieMaxAge'));
+    const expires = new Date(Date.now() + REFRESH_EXPIRY_MS);
     await query(
       'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
       [user.id, tokenHash, expires]
@@ -157,7 +196,21 @@ const loginUser = async (email, password) => {
 
     await query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
 
-    return { accessToken, refreshToken, user: { id: user.id, name: user.name, email: user.email, role: user.role }, directLogin: true };
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        avatar: user.avatar,
+        role: user.role,
+        is_verified: user.is_verified,
+        referral_code: user.referral_code,
+      },
+      directLogin: true,
+    };
   }
 
   // Passwordless OTP generation
@@ -174,6 +227,116 @@ const loginUser = async (email, password) => {
   }
 
   return { email, message: 'OTP sent to your email.' };
+};
+
+/**
+ * Request login OTP for an approved vendor
+ */
+const requestVendorOtp = async (email) => {
+  const vendor = await queryOne(
+    `SELECT u.id, u.name, u.email, u.role, u.is_active,
+            v.kyc_status, v.is_active as vendor_active
+     FROM users u
+     JOIN vendors v ON v.user_id = u.id
+     WHERE u.email = ?`,
+    [email]
+  );
+
+  if (!vendor) throw Object.assign(new Error('No vendor account found with this email.'), { statusCode: 404 });
+  if (!vendor.is_active || !vendor.vendor_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
+  if (vendor.kyc_status === 'pending') {
+    throw Object.assign(
+      new Error('Your vendor application is under review. You will be able to log in once approved.'),
+      { statusCode: 403 }
+    );
+  }
+  if (vendor.kyc_status === 'rejected') {
+    throw Object.assign(
+      new Error('Your vendor application was rejected. Please contact support for details.'),
+      { statusCode: 403 }
+    );
+  }
+  if (vendor.role !== 'vendor') throw Object.assign(new Error('Access denied. This portal is for vendors only.'), { statusCode: 403 });
+  if (vendor.kyc_status !== 'approved') {
+    throw Object.assign(
+      new Error(`Your vendor account has not been approved yet. Current status: ${vendor.kyc_status}. Please contact support.`),
+      { statusCode: 403 }
+    );
+  }
+
+  const otp = generateOTP(6);
+  const otpExpires = new Date(Date.now() + OTP_EXPIRY_SEC * 1000);
+  await query('UPDATE users SET otp = ?, otp_expires = ? WHERE id = ?', [otp, otpExpires, vendor.id]);
+
+  logger.info(`🔑 Vendor OTP for ${email} is: ${otp}`);
+
+  try {
+    await emailService.sendOTPEmail(email, vendor.name, otp);
+  } catch (e) {
+    logger.error('Failed to send OTP email:', e.message);
+  }
+
+  return { email, message: 'OTP sent to your email. Please verify to continue.' };
+};
+
+/**
+ * Verify vendor login OTP and issue tokens
+ */
+const verifyVendorOtp = async (email, otp) => {
+  const vendor = await queryOne(
+    `SELECT u.id, u.name, u.email, u.role, u.otp, u.otp_expires, u.is_active,
+            v.kyc_status, v.is_active as vendor_active, v.store_name
+     FROM users u
+     JOIN vendors v ON v.user_id = u.id
+     WHERE u.email = ?`,
+    [email]
+  );
+
+  if (!vendor) throw Object.assign(new Error('No vendor account found with this email.'), { statusCode: 404 });
+  if (!vendor.is_active || !vendor.vendor_active) throw Object.assign(new Error('Account is deactivated. Contact support.'), { statusCode: 403 });
+  if (vendor.kyc_status === 'pending') {
+    throw Object.assign(
+      new Error('Your vendor application is under review. You will be able to log in once approved.'),
+      { statusCode: 403 }
+    );
+  }
+  if (vendor.kyc_status === 'rejected') {
+    throw Object.assign(
+      new Error('Your vendor application was rejected. Please contact support for details.'),
+      { statusCode: 403 }
+    );
+  }
+  if (vendor.role !== 'vendor') throw Object.assign(new Error('Access denied. This portal is for vendors only.'), { statusCode: 403 });
+  if (vendor.kyc_status !== 'approved') {
+    throw Object.assign(
+      new Error(`Your vendor account has not been approved yet. Current status: ${vendor.kyc_status}. Please contact support.`),
+      { statusCode: 403 }
+    );
+  }
+  if (!vendor.otp || String(vendor.otp) !== String(otp)) throw Object.assign(new Error('Invalid OTP'), { statusCode: 400 });
+  if (new Date() > new Date(vendor.otp_expires)) throw Object.assign(new Error('OTP has expired. Please request a new one.'), { statusCode: 400 });
+
+  await query('UPDATE users SET is_verified = 1, otp = NULL, otp_expires = NULL WHERE id = ?', [vendor.id]);
+
+  const payload = { id: vendor.id, email: vendor.email, role: vendor.role };
+  const accessToken = generateAccessToken(payload);
+  const refreshToken = generateRefreshToken(payload);
+
+  const tokenHash = await bcrypt.hash(refreshToken, 8);
+  const expires = new Date(Date.now() + REFRESH_EXPIRY_MS);
+  await query(
+    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+    [vendor.id, tokenHash, expires]
+  );
+
+  await query('UPDATE users SET last_login = NOW() WHERE id = ?', [vendor.id]);
+
+  return {
+    accessToken,
+    refreshToken,
+    user: { id: vendor.id, name: vendor.name, email: vendor.email, role: vendor.role, store_name: vendor.store_name },
+    message: 'Login successful',
+  };
 };
 
 /**
@@ -197,7 +360,7 @@ const forgotPassword = async (email) => {
 const resetPassword = async (email, otp, newPassword) => {
   const user = await queryOne('SELECT id, otp, otp_expires FROM users WHERE email = ?', [email]);
   if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
-  if (!user.otp || user.otp !== otp) throw Object.assign(new Error('Invalid OTP'), { statusCode: 400 });
+  if (!user.otp || String(user.otp) !== String(otp)) throw Object.assign(new Error('Invalid OTP'), { statusCode: 400 });
   if (new Date() > new Date(user.otp_expires)) throw Object.assign(new Error('OTP expired'), { statusCode: 400 });
 
   const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
@@ -206,7 +369,7 @@ const resetPassword = async (email, otp, newPassword) => {
 };
 
 /**
- * Refresh access token using refresh token
+ * Refresh access token using refresh token (also rotates refresh token)
  */
 const refreshAccessToken = async (refreshToken) => {
   if (!refreshToken) throw Object.assign(new Error('Refresh token required'), { statusCode: 401 });
@@ -230,8 +393,25 @@ const refreshAccessToken = async (refreshToken) => {
   const user = await queryOne('SELECT id, email, role FROM users WHERE id = ? AND is_active = 1', [decoded.id]);
   if (!user) throw Object.assign(new Error('User not found'), { statusCode: 401 });
 
-  const newAccessToken = generateAccessToken({ id: user.id, email: user.email, role: user.role });
-  return { accessToken: newAccessToken };
+  // Block role changes mid-session — a token issued for one account type
+  // (customer/vendor/admin) must not be able to mint tokens for another.
+  if (decoded.role !== user.role) {
+    throw Object.assign(new Error('Your account type changed. Please log in again.'), { statusCode: 401 });
+  }
+
+  const payload = { id: user.id, email: user.email, role: user.role };
+  const newAccessToken = generateAccessToken(payload);
+  const newRefreshToken = generateRefreshToken(payload);
+
+  // Rotate: replace old refresh token hash in DB
+  const tokenHash = await bcrypt.hash(newRefreshToken, 8);
+  const expires = new Date(Date.now() + REFRESH_EXPIRY_MS);
+  await query(
+    'UPDATE refresh_tokens SET token_hash = ?, expires_at = ? WHERE id = ?',
+    [tokenHash, expires, tokens.id]
+  );
+
+  return { accessToken: newAccessToken, refreshToken: newRefreshToken, role: user.role };
 };
 
 /**
@@ -257,4 +437,4 @@ const resendOTP = async (email) => {
   return { message: 'New OTP sent to your email.' };
 };
 
-module.exports = { registerUser, verifyEmail, loginUser, forgotPassword, resetPassword, refreshAccessToken, logoutUser, resendOTP };
+module.exports = { registerUser, verifyEmail, loginUser, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refreshAccessToken, logoutUser, resendOTP };

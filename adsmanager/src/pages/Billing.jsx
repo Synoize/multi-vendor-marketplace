@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/axios'
 import Spinner from '../components/ui/Spinner'
-import EmptyState from '../components/ui/EmptyState'
+import DataTable from '../components/ui/DataTable'
 import { CreditCard, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -121,48 +121,53 @@ export default function Billing() {
                 <h3 className="font-bold text-gray-900 text-sm font-sans">Recent Wallet Transactions</h3>
               </div>
 
-              {transactions.length === 0 ? (
-                <EmptyState
-                  icon={<CreditCard className="h-10 w-10 text-gray-400" />}
-                  title="No transactions yet"
-                  description="Your billing transaction statements will appear here."
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase">
-                        <th className="p-4">Transaction ID</th>
-                        <th className="p-4">Description</th>
-                        <th className="p-4">Amount</th>
-                        <th className="p-4">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-                      {transactions.map(t => {
-                        const isCredit = t.type === 'credit'
-                        return (
-                          <tr key={t.id} className="hover:bg-gray-50/50">
-                            <td className="p-4 font-mono text-xs text-gray-600">{t.id}</td>
-                            <td className="p-4 text-gray-800">{t.description || 'Campaign Spend'}</td>
-                            <td className={`p-4 font-bold flex items-center gap-1 ${
-                              isCredit ? 'text-green-600' : 'text-red-500'
-                            }`}>
-                              {isCredit ? <ArrowDownLeft className="h-4.5 w-4.5" /> : <ArrowUpRight className="h-4.5 w-4.5" />}
-                              ₹{parseFloat(t.amount).toLocaleString('en-IN')}
-                            </td>
-                            <td className="p-4 text-xs text-gray-400">
-                              {new Date(t.created_at).toLocaleDateString('en-IN', {
-                                day: 'numeric', month: 'short', year: 'numeric'
-                              })}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <DataTable
+                columns={[
+                  {
+                    key: 'id',
+                    label: 'Transaction ID',
+                    render: (value) => (
+                      <span className="font-mono text-xs text-gray-600">{value}</span>
+                    ),
+                  },
+                  {
+                    key: 'description',
+                    label: 'Description',
+                    render: (value) => (
+                      <span className="text-gray-800">{value || 'Campaign Spend'}</span>
+                    ),
+                  },
+                  {
+                    key: 'amount',
+                    label: 'Amount',
+                    render: (value, row) => {
+                      const isCredit = row.type === 'credit'
+                      return (
+                        <span className={`font-bold flex items-center gap-1 ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
+                          {isCredit ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                          ₹{parseFloat(value).toLocaleString('en-IN')}
+                        </span>
+                      )
+                    },
+                  },
+                  {
+                    key: 'created_at',
+                    label: 'Date',
+                    render: (value) => (
+                      <span className="text-xs text-gray-400">
+                        {new Date(value).toLocaleDateString('en-IN', {
+                          day: 'numeric', month: 'short', year: 'numeric'
+                        })}
+                      </span>
+                    ),
+                  },
+                ]}
+                data={transactions}
+                loading={isLoading}
+                emptyMessage="No transactions yet. Your billing transaction statements will appear here."
+                enablePagination={false}
+                enableSearch={false}
+              />
             </div>
           </div>
 

@@ -15,9 +15,9 @@ export const useAuthStore = create(
         try {
           await api.post('/auth/logout')
         } catch { /* ignore */ } finally {
-          localStorage.removeItem('accessToken')
           set({ user: null, isAuthenticated: false })
-          window.location.href = '/login'
+          localStorage.removeItem('damini-auth')
+          localStorage.removeItem('damini-cart')
         }
       },
 
@@ -26,11 +26,26 @@ export const useAuthStore = create(
         try {
           const { data } = await api.get('/auth/me')
           set({ user: data.data, isAuthenticated: true })
-        } catch {
-          set({ user: null, isAuthenticated: false })
+        } catch (err) {
+          // Only treat 401 as logged-out. A 429 (rate limit) or a network
+          // error must NOT log the user out.
+          if (err?.response?.status === 401) {
+            set({ user: null, isAuthenticated: false })
+          }
         } finally {
           set({ isLoading: false })
         }
+      },
+
+      requestLoginOtp: async (email) => {
+        const { data } = await api.post('/auth/login', { email })
+        return data
+      },
+
+      verifyLoginOtp: async (email, otp) => {
+        const { data } = await api.post('/auth/verify-email', { email, otp })
+        set({ user: data.data.user, isAuthenticated: true })
+        return data
       },
     }),
     {

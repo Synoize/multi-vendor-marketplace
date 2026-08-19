@@ -1,25 +1,29 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import useAuthStore from './store/authStore';
-import AdminLayout from './components/layout/AdminLayout';
-import Spinner from './components/ui/Spinner';
+import { lazy, Suspense, useEffect, useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import useAuthStore from "./store/authStore";
+import AdminLayout from "./components/layout/AdminLayout";
+import Spinner from "./components/ui/Spinner";
 
 // Lazy-loaded pages
-const Login = lazy(() => import('./pages/auth/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Vendors = lazy(() => import('./pages/Vendors'));
-const VendorDetail = lazy(() => import('./pages/VendorDetail'));
-const Products = lazy(() => import('./pages/Products'));
-const Users = lazy(() => import('./pages/Users'));
-const Orders = lazy(() => import('./pages/Orders'));
-const Coupons = lazy(() => import('./pages/Coupons'));
-const Banners = lazy(() => import('./pages/Banners'));
-const Videos = lazy(() => import('./pages/Videos'));
-const Ads = lazy(() => import('./pages/Ads'));
-const Payouts = lazy(() => import('./pages/Payouts'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Support = lazy(() => import('./pages/Support'));
-const Settings = lazy(() => import('./pages/Settings'));
+const Login = lazy(() => import("./pages/auth/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Vendors = lazy(() => import("./pages/Vendors"));
+const VendorDetail = lazy(() => import("./pages/VendorDetail"));
+const Products = lazy(() => import("./pages/Products"));
+const Categories = lazy(() => import("./pages/Categories"));
+const Brands = lazy(() => import("./pages/Brands"));
+const Users = lazy(() => import("./pages/Users"));
+const Orders = lazy(() => import("./pages/Orders"));
+const Coupons = lazy(() => import("./pages/Coupons"));
+const Offers = lazy(() => import("./pages/Offers"));
+const Banners = lazy(() => import("./pages/Banners"));
+const Videos = lazy(() => import("./pages/Videos"));
+const Ads = lazy(() => import("./pages/Ads"));
+const Payouts = lazy(() => import("./pages/Payouts"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Support = lazy(() => import("./pages/Support"));
+const Settings = lazy(() => import("./pages/Settings"));
+const FestivalSales = lazy(() => import("./pages/FestivalSales"));
 
 function PageLoader() {
   return (
@@ -36,12 +40,7 @@ function ProtectedRoute({ children }) {
 
   useEffect(() => {
     const verify = async () => {
-      const token = localStorage.getItem('adminToken');
-      if (!token && !isAuthenticated) {
-        setChecking(false);
-        return;
-      }
-      if (isAuthenticated && user?.role === 'admin') {
+      if (isAuthenticated && user?.role === "admin") {
         setChecking(false);
         return;
       }
@@ -55,7 +54,7 @@ function ProtectedRoute({ children }) {
     return <PageLoader />;
   }
 
-  if (!isAuthenticated || user?.role !== 'admin') {
+  if (!isAuthenticated || user?.role !== "admin") {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -82,10 +81,14 @@ export default function App() {
           <Route path="vendors" element={<Vendors />} />
           <Route path="vendors/:id" element={<VendorDetail />} />
           <Route path="products" element={<Products />} />
+          <Route path="categories" element={<Categories />} />
+          <Route path="brands" element={<Brands />} />
           <Route path="users" element={<Users />} />
           <Route path="orders" element={<Orders />} />
           <Route path="coupons" element={<Coupons />} />
+          <Route path="offers" element={<Offers />} />
           <Route path="banners" element={<Banners />} />
+          <Route path="festival-sales" element={<FestivalSales />} />
           <Route path="videos" element={<Videos />} />
           <Route path="ads" element={<Ads />} />
           <Route path="payouts" element={<Payouts />} />

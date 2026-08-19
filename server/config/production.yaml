@@ -1,13 +1,80 @@
+# Production configuration - Hostinger
+# Fill in your real credentials. You can also override any of these at
+# runtime using environment variables (used in src/database/connection.js):
+#   DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+
 app:
+  name: "The Damini Edit API"
+  version: "1.0.0"
   env: "production"
-  port: 5000
+  port: 5000 # Must match the port set in Hostinger hPanel Node.js settings
+  clientUrl: "https://thedaminiedit.com"
+  vendorUrl: "https://vendor.thedaminiedit.com"
+  adminUrl: "https://admin.thedaminiedit.com"
+  adsUrl: "https://admanager.thedaminiedit.com"
+  uploadDir: "uploads"
+  maxFileSize: 5242880 # 5MB
+
+database:
+  host: "localhost"
+  port: 3306
+  name: "" # e.g. u123456789_damini
+  user: "" # e.g. u123456789_damini
+  password: ""
+  connectionLimit: 25
+  charset: "utf8mb4"
+
+jwt:
+  accessSecret: "CHANGE_ME_ACCESS_SECRET"
+  refreshSecret: "CHANGE_ME_REFRESH_SECRET"
+  accessExpiry: "2d"
+  refreshExpiry: "7d"
+  cookieMaxAge: 172800000 # 2 days in ms
 
 rateLimit:
+  windowMs: 900000 # 15 minutes
   max: 60
+  authMax: 5
+  skipPaths:
+    - "/v1/banners"
+    - "/v1/videos"
+    - "/v1/ads"
+    - "/v1/festival-sales"
+    - "/v1/settings"
 
 cors:
   origins:
-    - "https://damini.com"
-    - "https://vendor.damini.com"
-    - "https://admin.damini.com"
-    - "https://ads.damini.com"
+    - "https://thedaminiedit.com"
+    - "https://www.thedaminiedit.com"
+    - "https://vendor.thedaminiedit.com"
+    - "https://www.vendor.thedaminiedit.com"
+    - "https://admin.thedaminiedit.com"
+    - "https://www.admin.thedaminiedit.com"
+    - "https://admanager.thedaminiedit.com"
+    - "https://www.admanager.thedaminiedit.com"
+    # Add any other frontend domains here, e.g. "https://your-app.hostingerapp.com"
+
+mail:
+  host: "smtp.gmail.com"
+  port: 587
+  secure: false
+  user: "CHANGE_ME@gmail.com"
+  password: "CHANGE_ME_GMAIL_APP_PASSWORD"
+  from: "The Damini Edit <no-reply@thedaminiedit.com>"
+
+razorpay:
+  keyId: "CHANGE_ME_RAZORPAY_KEY_ID"
+  keySecret: "CHANGE_ME_RAZORPAY_KEY_SECRET"
+  webhookSecret: "CHANGE_ME_WEBHOOK_SECRET"
+
+shiprocket:
+  email: "CHANGE_ME_SHIPROCKET_EMAIL"
+  password: "CHANGE_ME_SHIPROCKET_PASSWORD"
+  channelId: ""
+  baseUrl: "https://apiv2.shiprocket.in/v1/external"
+
+commission:
+  defaultRate: 5 # 5% platform commission
+
+referral:
+  rewardAmount: 100 # Rs.100 per successful referral

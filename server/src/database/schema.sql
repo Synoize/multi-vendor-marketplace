@@ -11,11 +11,11 @@ SET sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVIS
 -- ─────────────────────────────────────────────────────────────
 -- Create Database
 -- ─────────────────────────────────────────────────────────────
-CREATE DATABASE IF NOT EXISTS damini_marketplace
+CREATE DATABASE IF NOT EXISTS u228855643_thedaminiedit
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE damini_marketplace;
+USE u228855643_thedaminiedit;
 
 -- ─────────────────────────────────────────────────────────────
 -- TABLE: users
@@ -107,13 +107,21 @@ CREATE TABLE IF NOT EXISTS vendors (
   user_id             CHAR(36)        NOT NULL,
   business_name       VARCHAR(200)    NOT NULL,
   business_type       ENUM('individual','proprietorship','partnership','private_limited','public_limited','llp') NOT NULL DEFAULT 'individual',
+  business_email      VARCHAR(200)    NULL,
+  business_email_verified TINYINT(1)  NOT NULL DEFAULT 0,
   gst_number          VARCHAR(20)     NULL,
   pan_number          VARCHAR(20)     NULL,
   gst_certificate     VARCHAR(500)    NULL,
   pan_image           VARCHAR(500)    NULL,
-  aadhar_image        VARCHAR(500)    NULL,
+  aadhar_image_front  VARCHAR(500)    NULL,
+  aadhar_image_back   VARCHAR(500)    NULL,
+  passport_photo      VARCHAR(500)    NULL,
+  udyam_certificate   VARCHAR(500)    NULL,
+  bank_passbook       VARCHAR(500)    NULL,
   kyc_status          ENUM('pending','submitted','under_review','approved','rejected') NOT NULL DEFAULT 'pending',
   kyc_rejected_reason TEXT            NULL,
+  business_email_otp        VARCHAR(200)    NULL,
+  business_email_otp_expires DATETIME       NULL,
   -- Bank Details
   bank_name           VARCHAR(100)    NULL,
   account_number      VARCHAR(50)     NULL,
@@ -174,7 +182,7 @@ CREATE TABLE IF NOT EXISTS products (
   return_type         ENUM('full_return','replacement_only','refund_only','no_return') NOT NULL DEFAULT 'full_return',
   return_window       INT             NOT NULL DEFAULT 7 COMMENT 'days',
   -- Status & Approval
-  status              ENUM('draft','pending','active','rejected','blocked','out_of_stock','discontinued') NOT NULL DEFAULT 'pending',
+  status              ENUM('draft','inactive','pending','active','rejected','blocked','out_of_stock','discontinued') NOT NULL DEFAULT 'pending',
   rejection_reason    TEXT            NULL,
   is_featured         TINYINT(1)      NOT NULL DEFAULT 0,
   is_cod_available    TINYINT(1)      NOT NULL DEFAULT 1,
@@ -255,6 +263,7 @@ CREATE TABLE IF NOT EXISTS addresses (
   user_id     CHAR(36)        NOT NULL,
   name        VARCHAR(100)    NOT NULL,
   phone       VARCHAR(15)     NOT NULL,
+  email       VARCHAR(200)    NULL,
   line1       VARCHAR(255)    NOT NULL,
   line2       VARCHAR(255)    NULL,
   landmark    VARCHAR(200)    NULL,
@@ -435,6 +444,26 @@ CREATE TABLE IF NOT EXISTS payments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
+-- TABLE: checkout_sessions (pending Razorpay payments; order is
+-- only created after payment is captured & verified)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS checkout_sessions (
+  id                CHAR(36)        NOT NULL DEFAULT (UUID()),
+  user_id           CHAR(36)        NOT NULL,
+  razorpay_order_id VARCHAR(100)    NOT NULL,
+  payload           JSON            NOT NULL COMMENT 'Checkout payload used to create the order on verify',
+  amount            DECIMAL(12,2)   NOT NULL,
+  status            ENUM('pending','completed','expired','failed') NOT NULL DEFAULT 'pending',
+  created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at        DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cs_rz_order (razorpay_order_id),
+  INDEX idx_cs_user (user_id),
+  INDEX idx_cs_status (status),
+  CONSTRAINT fk_cs_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
 -- TABLE: shipments
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS shipments (
@@ -555,7 +584,7 @@ CREATE TABLE IF NOT EXISTS banners (
   image       VARCHAR(500)    NOT NULL,
   mobile_image VARCHAR(500)   NULL,
   link        VARCHAR(500)    NULL,
-  position    ENUM('hero','category','offer','sidebar','popup') NOT NULL DEFAULT 'hero',
+  position    ENUM('hero','category','offer','sidebar','popup','mid') NOT NULL DEFAULT 'hero',
   sort_order  INT             NOT NULL DEFAULT 0,
   is_active   TINYINT(1)      NOT NULL DEFAULT 1,
   starts_at   DATETIME        NULL,
@@ -662,6 +691,30 @@ CREATE TABLE IF NOT EXISTS notifications (
   INDEX idx_notif_read (is_read),
   INDEX idx_notif_type (type),
   CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: vendor_pending_updates
+-- Changes to important vendor fields (bank, pickup, business,
+-- documents) require admin approval before being applied.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vendor_pending_updates (
+  id          CHAR(36)        NOT NULL DEFAULT (UUID()),
+  vendor_id   CHAR(36)        NOT NULL,
+  user_id     CHAR(36)        NOT NULL,
+  section     VARCHAR(50)     NOT NULL COMMENT 'bank | pickup | business | documents',
+  changes     JSON            NOT NULL COMMENT '{field: newValue}',
+  old_values  JSON            NULL COMMENT '{field: oldValue}',
+  status      ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  admin_id    CHAR(36)        NULL,
+  admin_note  TEXT            NULL,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME        NULL,
+  PRIMARY KEY (id),
+  INDEX idx_vpu_vendor (vendor_id),
+  INDEX idx_vpu_status (status),
+  CONSTRAINT fk_vpu_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (id) ON DELETE CASCADE,
+  CONSTRAINT fk_vpu_admin FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
@@ -870,6 +923,56 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   PRIMARY KEY (id),
   INDEX idx_wt_user (user_id),
   CONSTRAINT fk_wt_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: offers (promotions / deals)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS offers (
+  id                  INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  title               VARCHAR(200)    NOT NULL,
+  description         TEXT            NULL,
+  type                ENUM('bogo','percentage','fixed','free_shipping') NOT NULL,
+  discount_value      DECIMAL(10,2)   NULL COMMENT 'Amount for fixed, percent for percentage',
+  discount_percent    DECIMAL(5,2)    NULL COMMENT 'For BOGO: % off on get items (100 = free)',
+  buy_quantity        INT UNSIGNED    NULL COMMENT 'BOGO: items to buy',
+  get_quantity        INT UNSIGNED    NULL COMMENT 'BOGO: items to get discounted/free',
+  max_discount        DECIMAL(10,2)   NULL COMMENT 'Max cap for percentage/BOGO',
+  min_purchase_amount DECIMAL(10,2)   NULL,
+  min_item_quantity   INT UNSIGNED    NULL,
+  applicable_to       ENUM('all','category','product','vendor') NOT NULL DEFAULT 'all',
+  applicable_id       VARCHAR(100)    NULL,
+  valid_from          DATETIME        NOT NULL,
+  valid_to            DATETIME        NOT NULL,
+  usage_limit         INT UNSIGNED    NULL COMMENT 'NULL = unlimited',
+  used_count          INT UNSIGNED    NOT NULL DEFAULT 0,
+  per_user_limit      INT UNSIGNED    NOT NULL DEFAULT 1,
+  image               VARCHAR(500)    NULL,
+  badge_text          VARCHAR(50)     NULL COMMENT 'Short badge like BOGO, SALE, OFFER',
+  is_active           TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_offers_active (is_active, valid_from, valid_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: offer_usages (tracking who used which offer)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS offer_usages (
+  id          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  offer_id    INT UNSIGNED    NOT NULL,
+  user_id     CHAR(36)        NOT NULL,
+  order_id    CHAR(36)        NOT NULL,
+  discount    DECIMAL(12,2)   NOT NULL,
+  used_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ou_offer (offer_id),
+  INDEX idx_ou_user (user_id),
+  INDEX idx_ou_order (order_id),
+  CONSTRAINT fk_ou_offer FOREIGN KEY (offer_id) REFERENCES offers (id),
+  CONSTRAINT fk_ou_user FOREIGN KEY (user_id) REFERENCES users (id),
+  CONSTRAINT fk_ou_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

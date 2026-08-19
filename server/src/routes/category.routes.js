@@ -12,12 +12,17 @@ const { createSlug } = require('../utils/sku.util');
 // ─── Category Router ──────────────────────────────────────────────────────────
 const categoryRouter = express.Router();
 
-/** GET /categories — hierarchical tree */
+/** GET /categories — hierarchical tree (?all=1 includes inactive) */
 categoryRouter.get('/', asyncHandler(async (req, res) => {
-  const all = await queryRows('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order, name');
-  const tree = all.filter(c => !c.parent_id).map(parent => ({
+  const includeInactive = req.query.all === '1';
+  const rows = await queryRows(
+    includeInactive
+      ? 'SELECT * FROM categories ORDER BY sort_order, name'
+      : 'SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order, name'
+  );
+  const tree = rows.filter(c => !c.parent_id).map(parent => ({
     ...parent,
-    children: all.filter(c => c.parent_id === parent.id),
+    children: rows.filter(c => c.parent_id === parent.id),
   }));
   sendSuccess(res, tree);
 }));
@@ -66,7 +71,17 @@ categoryRouter.delete('/:id', protect, requireRole('admin'), asyncHandler(async 
 const brandRouter = express.Router();
 
 brandRouter.get('/', asyncHandler(async (req, res) => {
-  const brands = await queryRows('SELECT * FROM brands WHERE is_active = 1 ORDER BY name');
+  // ?all=1 returns every brand (incl. inactive) — used by the admin panel;
+  // default (public/storefront) only exposes active brands.
+  const where = req.query.all === '1' ? '1=1' : 'is_active = 1';
+  const brands = await queryRows(
+    `SELECT b.*, COUNT(p.id) AS product_count
+       FROM brands b
+       LEFT JOIN products p ON p.brand_id = b.id
+      WHERE ${where}
+      GROUP BY b.id
+      ORDER BY b.name`
+  );
   sendSuccess(res, brands);
 }));
 

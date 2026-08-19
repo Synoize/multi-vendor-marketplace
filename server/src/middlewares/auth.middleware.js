@@ -3,7 +3,7 @@
  * Verifies JWT from cookies or Authorization header
  */
 
-const { verifyAccessToken } = require('../utils/token.util');
+const { verifyAccessToken, getAccessTokenFromCookies } = require('../utils/token.util');
 const { queryOne } = require('../database/connection');
 const { sendError } = require('../utils/response.util');
 const logger = require('../utils/logger.util');
@@ -15,12 +15,10 @@ const protect = async (req, res, next) => {
   try {
     let token;
 
-    // 1. Try cookie first
-    if (req.cookies?.accessToken) {
-      token = req.cookies.accessToken;
-    }
+    // 1. Try role-prefixed cookies first (adminAccessToken, vendorAccessToken, etc.)
+    token = getAccessTokenFromCookies(req.cookies);
     // 2. Fallback to Bearer header
-    else if (req.headers.authorization?.startsWith('Bearer ')) {
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
       token = req.headers.authorization.split(' ')[1];
     }
 
@@ -33,7 +31,7 @@ const protect = async (req, res, next) => {
 
     // Fetch user from DB (ensures user still exists + is_active)
     const user = await queryOne(
-      'SELECT id, name, email, role, is_active, is_verified FROM users WHERE id = ?',
+      'SELECT id, name, email, phone, avatar, role, is_active, is_verified, referral_code, created_at FROM users WHERE id = ?',
       [decoded.id]
     );
 
@@ -43,6 +41,13 @@ const protect = async (req, res, next) => {
 
     if (!user.is_active) {
       return sendError(res, 'Your account has been deactivated.', 403);
+    }
+
+    // Sessions are tied to the role they were issued for. If the user's role
+    // changed after login (e.g. a customer was approved as a vendor), the old
+    // session must not silently inherit the new permissions — sign in again.
+    if (decoded.role !== user.role) {
+      return sendError(res, 'Your account type changed. Please log in again.', 401);
     }
 
     req.user = user;
@@ -81,7 +86,7 @@ const requireRole = (...roles) => {
  */
 const optionalAuth = async (req, res, next) => {
   try {
-    const token = req.cookies?.accessToken ||
+    const token = getAccessTokenFromCookies(req.cookies) ||
       req.headers.authorization?.split(' ')[1];
 
     if (token) {

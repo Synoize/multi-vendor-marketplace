@@ -13,7 +13,9 @@ const reviewService = require('../services/review.service');
 const createReview = asyncHandler(async (req, res) => {
   const { productId } = req.params;
   const userId = req.user.id;
-  await reviewService.createReview(userId, productId, req.body);
+  const images = req.files?.map(f => `/uploads/reviews/${f.filename}`) || [];
+  const body = { ...req.body, rating: Number(req.body.rating), images: images.length > 0 ? images : undefined };
+  await reviewService.createReview(userId, productId, body);
   sendCreated(res, null, 'Review submitted successfully');
 });
 

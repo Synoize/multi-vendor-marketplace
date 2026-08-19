@@ -44,7 +44,7 @@ const sendPaginated = (res, options) => {
   let { data, total, page, limit, message = 'Success' } = options;
 
   // 1. Extract array data from common keys if not provided directly in 'data'
-  const arrayData = data || options.products || options.orders || options.notifications || options.vendors || options.users || options.returns || options.shipments || [];
+  const arrayData = data || options.products || options.orders || options.notifications || options.vendors || options.users || options.returns || options.shipments || options.updates || [];
 
   // 2. Build the data object format (e.g. for customer store queries)
   const dataObject = {
@@ -54,6 +54,7 @@ const sendPaginated = (res, options) => {
     vendors: options.vendors,
     users: options.users,
     returns: options.returns,
+    updates: options.updates,
     total,
   };
 
@@ -76,6 +77,7 @@ const sendPaginated = (res, options) => {
     ...(options.vendors && { vendors: options.vendors }),
     ...(options.users && { users: options.users }),
     ...(options.returns && { returns: options.returns }),
+    ...(options.updates && { updates: options.updates }),
     pagination: {
       total,
       page,

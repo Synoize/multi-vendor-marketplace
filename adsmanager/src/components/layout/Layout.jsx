@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
+import ConfirmDialog from '../ui/ConfirmDialog'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../lib/axios'
 
@@ -31,6 +32,7 @@ function Layout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [logoutConfirm, setLogoutConfirm] = useState(false)
 
   const { data: walletData } = useQuery({
     queryKey: ['ads-wallet'],
@@ -41,8 +43,7 @@ function Layout() {
   const balance = walletData?.balance ?? 0
 
   const handleLogout = () => {
-    logout()
-    navigate('/login')
+    setLogoutConfirm(true)
   }
 
   const SidebarContent = () => (
@@ -248,6 +249,16 @@ function Layout() {
           </div>
         </main>
       </div>
+
+      <ConfirmDialog
+        isOpen={logoutConfirm}
+        onClose={() => setLogoutConfirm(false)}
+        onConfirm={() => { setLogoutConfirm(false); logout(); navigate('/login'); }}
+        title="Logout"
+        message="Are you sure you want to logout?"
+        confirmLabel="Logout"
+        variant="danger"
+      />
     </div>
   )
 }

@@ -17,9 +17,6 @@ const useVendorAuthStore = create(
        * Set vendor auth after successful login/register
        */
       setVendorAuth: ({ vendor, user, token }) => {
-        if (token) {
-          localStorage.setItem('vendor_token', token)
-        }
         set({
           vendor,
           user,
@@ -50,20 +47,20 @@ const useVendorAuthStore = create(
        * Logout — clear all auth state
        */
       logout: () => {
-        localStorage.removeItem('vendor_token')
-        localStorage.removeItem('vendor_data')
         set({
           vendor: null,
           user: null,
           token: null,
           isAuthenticated: false,
         })
+        localStorage.removeItem('damini-vendor-auth')
+        localStorage.removeItem('vendor-auth-storage')
       },
 
       /**
        * Get current token (helper)
        */
-      getToken: () => get().token || localStorage.getItem('vendor_token'),
+      getToken: () => get().token,
     }),
     {
       name: 'damini-vendor-auth',

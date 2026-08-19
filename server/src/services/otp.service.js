@@ -51,9 +51,10 @@ const generateAndSaveOTP = async (userId) => {
   // 3. Hash it (so DB breach doesn't expose active OTPs)
   const hashedOTP = await bcrypt.hash(rawOTP, OTP_SALT_ROUNDS);
 
-  // 4. Compute expiry (now + 10 min) in MySQL DATETIME format
+  // 4. Compute expiry (now + 10 min) in MySQL DATETIME format (local time)
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-  const mysqlExpiry = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
+  const pad = (n) => String(n).padStart(2, '0');
+  const mysqlExpiry = `${expiresAt.getFullYear()}-${pad(expiresAt.getMonth() + 1)}-${pad(expiresAt.getDate())} ${pad(expiresAt.getHours())}:${pad(expiresAt.getMinutes())}:${pad(expiresAt.getSeconds())}`;
 
   // 5. Persist to DB
   await query(

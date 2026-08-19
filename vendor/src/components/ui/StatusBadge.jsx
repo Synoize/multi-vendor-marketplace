@@ -22,6 +22,7 @@ const statusConfig = {
   inactive: { label: 'Inactive', classes: 'bg-gray-100 text-gray-600' },
   draft: { label: 'Draft', classes: 'bg-slate-100 text-slate-600' },
   out_of_stock: { label: 'Out of Stock', classes: 'bg-red-100 text-red-700' },
+  blocked: { label: 'Blocked', classes: 'bg-red-100 text-red-700' },
 
   // Ad / campaign statuses
   running: { label: 'Running', classes: 'bg-emerald-100 text-emerald-700' },

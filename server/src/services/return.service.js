@@ -88,6 +88,20 @@ async function requestReturn(orderItemId, userId, data) {
     referenceType: 'return',
   });
 
+  // Notify the vendor about the return request
+  if (item.vendor_id) {
+    const vendorUser = await queryOne('SELECT user_id FROM vendors WHERE id = ?', [item.vendor_id]);
+    if (vendorUser) {
+      await createNotification(vendorUser.user_id, {
+        title: 'Return Requested',
+        message: `A customer requested a return for "${item.product_name}". Review it in your Returns page.`,
+        type: 'return',
+        referenceId: returnRecord?.id,
+        referenceType: 'return',
+      });
+    }
+  }
+
   logger.info(`[ReturnService] Return requested for orderItem=${orderItemId} by user=${userId}`);
   return returnRecord;
 }

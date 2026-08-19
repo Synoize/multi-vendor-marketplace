@@ -16,38 +16,35 @@ const useAuthStore = create(
           throw new Error('Access denied. Vendor account required.')
         }
 
-        localStorage.setItem('adsToken', token)
         set({ user, isAuthenticated: true })
         return user
       },
 
-      logout: () => {
-        localStorage.removeItem('adsToken')
+      logout: async () => {
+        try { await api.post('/auth/logout') } catch { /* ignore */ }
         set({ user: null, isAuthenticated: false })
+        localStorage.removeItem('damini-ads')
         window.location.href = '/login'
       },
 
       checkAuth: async () => {
-        const token = localStorage.getItem('adsToken')
-        if (!token) {
-          set({ user: null, isAuthenticated: false })
-          return false
-        }
-
         try {
           const response = await api.get('/auth/me')
           const user = response.data.user || response.data
 
           if (user.role !== 'vendor') {
-            get().logout()
+            set({ user: null, isAuthenticated: false })
             return false
           }
 
           set({ user, isAuthenticated: true })
           return true
-        } catch {
-          localStorage.removeItem('adsToken')
-          set({ user: null, isAuthenticated: false })
+        } catch (err) {
+          // Only treat 401 as logged-out. A 429 (rate limit) or a network
+          // error must NOT log the user out.
+          if (err?.response?.status === 401) {
+            set({ user: null, isAuthenticated: false })
+          }
           return false
         }
       },

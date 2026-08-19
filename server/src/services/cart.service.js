@@ -7,6 +7,22 @@
 
 const { query, queryRows, queryOne, transaction } = require('../database/connection');
 const logger = require('../utils/logger.util');
+const { getShippingConfig } = require('../utils/shipping.util');
+
+
+// In-memory locks to serialize concurrent cart operations per user & product
+const cartLocks = new Map();
+
+async function acquireLock(key) {
+  while (cartLocks.has(key)) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  cartLocks.set(key, true);
+}
+
+function releaseLock(key) {
+  cartLocks.delete(key);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +102,9 @@ async function getCart(userId) {
 
     const parseItem = (item) => ({
       ...item,
+      id: item.cart_item_id, // Map cart_item_id to id for frontend compatibility
+      unit_price: parseFloat(item.effective_price),
+      mrp: parseFloat(item.effective_mrp),
       variant_attributes: item.variant_attributes
         ? (typeof item.variant_attributes === 'string'
             ? JSON.parse(item.variant_attributes)
@@ -104,7 +123,8 @@ async function getCart(userId) {
     const savedItems = rows.filter((r) => r.saved_for_later).map(parseItem);
 
     const { subtotal, itemCount } = calcTotals(items);
-    const shipping = subtotal > 0 && subtotal < 499 ? 49 : 0;
+    const { shippingCharge, freeShippingThreshold } = await getShippingConfig();
+    const shipping = subtotal > 0 && subtotal < freeShippingThreshold ? shippingCharge : 0;
 
     return {
       items,
@@ -113,6 +133,8 @@ async function getCart(userId) {
       shipping,
       total: parseFloat((subtotal + shipping).toFixed(2)),
       itemCount,
+      freeShippingThreshold,
+      shippingCharge,
     };
   } catch (err) {
     logger.error('CartService.getCart error:', err);
@@ -133,6 +155,8 @@ async function getCart(userId) {
  * @returns {Promise<{ count: number, uniqueItems: number }>}
  */
 async function addToCart(userId, productId, variantId = null, quantity = 1) {
+  const lockKey = `${userId}:${productId}:${variantId || 'null'}`;
+  await acquireLock(lockKey);
   try {
     if (quantity < 1) {
       throw Object.assign(new Error('Quantity must be at least 1'), { statusCode: 400 });
@@ -201,6 +225,8 @@ async function addToCart(userId, productId, variantId = null, quantity = 1) {
   } catch (err) {
     logger.error('CartService.addToCart error:', err);
     throw err;
+  } finally {
+    releaseLock(lockKey);
   }
 }
 

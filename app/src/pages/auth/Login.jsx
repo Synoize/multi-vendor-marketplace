@@ -1,161 +1,242 @@
-import React, { useState } from 'react'
-import { Helmet } from 'react-helmet-async'
-import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { ShoppingBag, Mail, Lock } from 'lucide-react'
-import api from '@/lib/axios'
-import { useAuthStore } from '@/store/authStore'
-import { toast } from 'sonner'
+import React, { useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { Link, useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { ShoppingBag, Mail, Lock } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
+import { toast } from "sonner";
+import { assets } from "../../assets/assets";
 
 export default function Login() {
-  const navigate = useNavigate()
-  const { setUser } = useAuthStore()
-  const [step, setStep] = useState('email') // 'email' | 'otp'
-  const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { register, handleSubmit, formState: { errors } } = useForm()
+  const navigate = useNavigate();
+  const [step, setStep] = useState("email"); // 'email' | 'otp'
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();
 
   const handleRequestOTP = async (data) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      await api.post('/auth/login', { email: data.email })
-      setEmail(data.email)
-      setStep('otp')
-      toast.success('OTP sent to your email address!')
+      await useAuthStore.getState().requestLoginOtp(data.email);
+      setEmail(data.email);
+      setStep("otp");
+      toast.success("OTP sent to your email address!");
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send OTP')
+      toast.error(err.response?.data?.message || "Failed to send OTP");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleVerifyOTP = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!otp || otp.length !== 6) {
-      toast.error('Please enter a 6-digit OTP')
-      return
+      toast.error("Please enter a 6-digit OTP");
+      return;
     }
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await api.post('/auth/verify-email', { email, otp })
-      localStorage.setItem('accessToken', res.data.data?.accessToken)
-      setUser(res.data.data?.user)
-      toast.success(`Welcome to Damini!`)
-      navigate('/')
+      const res = await useAuthStore.getState().verifyLoginOtp(email, otp);
+      localStorage.setItem("show_welcome", "true");
+      toast.success(`Welcome to The Damini Edit!`);
+      navigate("/");
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Invalid or expired OTP')
+      toast.error(err.response?.data?.message || "Invalid or expired OTP");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <>
-      <Helmet><title>Login - Damini Marketplace</title></Helmet>
-      <div className="min-h-screen bg-gradient-to-br from-[#2874F0] to-[#0d4bbf] flex">
-        {/* Left branding */}
-        <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 text-white">
-          <div className="max-w-xs">
-            <div className="flex items-center gap-3 mb-8">
-              <ShoppingBag className="h-10 w-10" />
-              <span className="text-4xl font-bold">damini</span>
-            </div>
-            <h2 className="text-3xl font-bold mb-4 leading-tight">Fastest & Secure OTP Login</h2>
-            <p className="text-blue-200 text-lg leading-relaxed">No passwords needed. Verify your email to instantly access your wishlist, cart, and orders.</p>
-            <div className="mt-8 space-y-3 text-blue-100">
-              {['🛍️ Best prices guaranteed', '🚀 Same day delivery', '🔄 Easy 7-day returns', '🔒 100% secure payments'].map(f => (
-                <p key={f} className="flex items-center gap-2 text-sm">{f}</p>
-              ))}
+      <Helmet>
+        <title>Login - The Damini Edit Marketplace</title>
+      </Helmet>
+      <div className="min-h-screen bg-gradient-to-br from-primary via-primary-500 to-primary-700 flex items-center justify-center p-4">
+        <div className="max-w-6xl min-h-[60vh] bg-white rounded-3xl overflow-hidden shadow-2xl grid lg:grid-cols-2">
+          {/* Left Side */}
+          <div className="hidden lg:flex relative">
+            <img
+              src="https://picsum.photos/seed/2/900/900"
+              alt="Damini"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+
+            <div className="absolute inset-0 bg-black/10" />
+
+            <div className="w-full relative z-10 flex flex-col justify-center p-12 text-white">
+              <img src={assets.logo} alt="" className="w-20" />
+
+              <h2 className="mt-8 text-4xl leading-tight">The Damini Edit</h2>
+
+              <p className="mt-2 text-sm text-white/90 font-light max-w-md leading-8">
+                {step === "email"
+                  ? "Sign in to manage your store"
+                  : "Enter the OTP sent to your email"}
+              </p>
+
+              <div className="mt-10 space-y-4 text-sm font-light">
+                <div>✔ Secure OTP Login</div>
+                <div>✔ Fast Delivery</div>
+                <div>✔ Trusted Sellers</div>
+                <div>✔ Safe Payments</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Right form */}
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-            <div className="lg:hidden text-center mb-6">
-              <span className="text-[#2874F0] font-bold text-3xl">damini</span>
-            </div>
+          {/* Right Side */}
+          <div className="flex items-center justify-center px-6 py-8 md:px-12">
+            <div className="w-full max-w-md">
+              {/* Mobile Logo */}
+              <img
+                src={assets.logo}
+                alt=""
+                className="w-20 lg:hidden text-center mb-4"
+              />
 
-            {step === 'email' ? (
-              <>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">Login / Signup</h1>
-                <p className="text-gray-500 text-sm mb-6">Enter your email to receive a secure login OTP</p>
+              {step === "email" ? (
+                <div className="min-h-[100px]">
+                  <h2 className="text-xl sm:text-3xl text-secondary-950">
+                    Login or Signup
+                  </h2>
 
-                <form onSubmit={handleSubmit(handleRequestOTP)} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="email"
-                        {...register('email', { required: 'Email is required' })}
-                        placeholder="you@example.com"
-                        className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#2874F0] focus:ring-2 focus:ring-blue-100 transition-all"
-                      />
+                  <p className="mt-2 text-xs sm:text-sm text-secondary-800">
+                    We'll send a verification code to your email.
+                  </p>
+
+                  <form
+                    onSubmit={handleSubmit(handleRequestOTP)}
+                    className="mt-8 space-y-5"
+                  >
+                    <div>
+                      <label className="text-sm font-medium text-secondary-950">
+                        Email Address
+                      </label>
+
+                      <div className="relative mt-2 group">
+                        <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-700 transition-colors duration-200 group-focus-within:text-secondary-800" />
+
+                        <input
+                          type="email"
+                          {...register("email", {
+                            required: "Email is required",
+                          })}
+                          placeholder="you@example.com"
+                          className="w-full rounded-xl border border-secondary-500 bg-white py-2.5 sm:py-3.5 pl-12 pr-4 text-xs sm:text-sm text-secondary-950 shadow-sm outline-none transition-all duration-200 focus:border-secondary-800"
+                        />
+                      </div>
+
+                      {errors.email && (
+                        <p className="mt-2 text-sm text-red-500">
+                          {errors.email.message}
+                        </p>
+                      )}
                     </div>
-                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+
+                    <button
+                      disabled={loading}
+                      className="w-full rounded-xl bg-primary py-2.5 sm:py-3.5 text-xs sm:text-sm text-white transition hover:opacity-90 disabled:opacity-60"
+                    >
+                      {loading ? "Sending OTP..." : "Send OTP"}
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div className="min-h-[100px]">
+                  <h2 className="text-xl sm:text-3xl text-secondary-950">
+                    Verify OTP
+                  </h2>
+
+                  <div className="mt-4 flex items-center gap-4 justify-between bg-secondary border rounded-xl px-4 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-xs text-secondary-800">
+                        We've sent a verification code to
+                      </p>
+                      <p className="text-[11px] text-secondary-900 font-medium break-all">
+                        {email}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep("email");
+                        setOtp("");
+                      }}
+                      className="text-xs font-semibold text-blue-600 hover:underline flex-shrink-0 ml-2"
+                    >
+                      Change
+                    </button>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-[#FB641B] hover:bg-[#e55a18] disabled:opacity-60 text-white font-bold py-3.5 rounded-lg transition-colors text-sm"
-                  >
-                    {loading ? 'Sending OTP...' : 'Send Verification OTP'}
-                  </button>
-                </form>
-              </>
-            ) : (
-              <>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Verify OTP</h1>
-                <p className="text-gray-500 text-sm mb-6">We've sent a 6-digit verification code to <span className="font-semibold text-gray-800">{email}</span></p>
+                  <form onSubmit={handleVerifyOTP} className="mt-4 space-y-5">
+                    <div>
+                      <label className="text-sm font-medium text-secondary-900">
+                        Verification Code
+                      </label>
 
-                <form onSubmit={handleVerifyOTP} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Enter 6-Digit OTP</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="text"
-                        maxLength={6}
-                        required
-                        value={otp}
-                        onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="000000"
-                        className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#2874F0] focus:ring-2 focus:ring-blue-100 transition-all font-mono tracking-widest"
-                      />
+                      <div className="relative mt-2 group">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) =>
+                            setOtp(
+                              e.target.value.replace(/\D/g, "").slice(0, 6),
+                            )
+                          }
+                          placeholder="000000"
+                          className="w-full px-4 py-1.5 sm:py-2.5 sm:text-lg text-center tracking-[0.5em] font-mono border rounded-xl outline-none focus:border-secondary-600 transition-all"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading || otp.length !== 6}
-                    className="w-full bg-[#FB641B] hover:bg-[#e55a18] disabled:opacity-60 text-white font-bold py-3.5 rounded-lg transition-colors text-sm"
-                  >
-                    {loading ? 'Verifying...' : 'Verify & Log In'}
-                  </button>
-                </form>
+                    <button
+                      disabled={loading || otp.length !== 6}
+                      className="w-full rounded-xl bg-primary py-2.5 sm:py-3.5 text-xs sm:text-sm text-white transition hover:opacity-90 disabled:opacity-60"
+                    >
+                      {loading ? "Verifying..." : "Verify & Continue"}
+                    </button>
+                  </form>
 
-                <button
-                  type="button"
-                  onClick={() => api.post('/auth/login', { email }).then(() => toast.success('New OTP sent!'))}
-                  className="mt-4 w-full text-center text-sm font-semibold text-[#2874F0] hover:underline"
-                >
-                  Resend OTP Code
-                </button>
-              </>
-            )}
+                  <p className="group mt-6 w-full text-xs text-center font-medium text-secondary-800">
+                    Didn't receive the code?{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        useAuthStore
+                          .getState()
+                          .requestLoginOtp(email)
+                          .then(() => toast.success("OTP sent again"))
+                      }
+                      className="hover:underline text-secondary-950"
+                    >
+                      Resend OTP
+                    </button>
+                  </p>
+                </div>
+              )}
 
-            <div className="mt-8 text-center">
-              <Link to="/seller-register" className="text-xs text-gray-500 hover:text-[#2874F0] transition-colors">
-                Want to sell on Damini? <span className="font-semibold">Register as Seller →</span>
+              <Link
+                to="/seller-register"
+                className="group inline-flex items-center gap-2 font-medium text-xs md:text-sm text-primary transition-all duration-300 hover:gap-3 mt-10"
+              >
+                Become a Seller
+                <span className="transition-transform duration-300 group-hover:translate-x-1">
+                  →
+                </span>
               </Link>
             </div>
           </div>
         </div>
+        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full text-center text-xs text-secondary">
+          © {new Date().getFullYear()} The Damini Edit. All rights reserved.
+        </p>
       </div>
     </>
-  )
+  );
 }

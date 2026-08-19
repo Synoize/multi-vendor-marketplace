@@ -1,5 +1,5 @@
-import React from 'react'
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import React from "react";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 export default function StatCard({
   label,
@@ -7,30 +7,34 @@ export default function StatCard({
   icon: Icon,
   trend,
   trendLabel,
-  iconBg = 'bg-blue-100',
-  iconColor = 'text-blue-600',
-  prefix = '',
-  suffix = '',
+  iconBg = "bg-blue-100",
+  iconColor = "text-blue-600",
+  prefix = "",
+  suffix = "",
   loading = false,
 }) {
-  const trendIsPositive = trend > 0
-  const trendIsNeutral = trend === 0 || trend === undefined || trend === null
+  const trendIsPositive = trend > 0;
+  const trendIsNeutral = trend === 0 || trend === undefined || trend === null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 hover:shadow-md transition-shadow duration-200">
+    <div className="bg-white rounded-2xl shadow-sm border p-5 flex flex-col sm:gap-4 hover:shadow-md transition-shadow duration-200">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+        <p className="text-xs font-medium text-secondary-800 uppercase tracking-wide">
+          {label}
+        </p>
         {Icon && (
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}
+          >
             <Icon className={`w-5 h-5 ${iconColor}`} />
           </div>
         )}
       </div>
 
       {loading ? (
-        <div className="h-8 w-32 bg-gray-200 animate-pulse rounded-md" />
+        <div className="h-8 w-24 bg-secondary animate-pulse rounded-md" />
       ) : (
-        <p className="text-3xl font-bold text-gray-900">
+        <p className="text-lg sm:text-2xl font-semibold text-secondary-900">
           {prefix}
           {value}
           {suffix}
@@ -46,24 +50,24 @@ export default function StatCard({
           )}
           <span
             className={`text-sm font-semibold ${
-              trendIsPositive ? 'text-emerald-600' : 'text-red-500'
+              trendIsPositive ? "text-emerald-600" : "text-red-500"
             }`}
           >
-            {trendIsPositive ? '+' : ''}
+            {trendIsPositive ? "+" : ""}
             {trend}%
           </span>
           {trendLabel && (
-            <span className="text-sm text-gray-400">{trendLabel}</span>
+            <span className="text-sm text-secondary-700">{trendLabel}</span>
           )}
         </div>
       )}
 
       {trendIsNeutral && trendLabel && !loading && (
         <div className="flex items-center gap-1.5">
-          <Minus className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-400">{trendLabel}</span>
+          <Minus className="w-4 h-4 text-secondary-700" />
+          <span className="text-xs text-secondary-700">{trendLabel}</span>
         </div>
       )}
     </div>
-  )
+  );
 }

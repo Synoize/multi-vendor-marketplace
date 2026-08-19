@@ -6,6 +6,7 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const config = require('config');
 const { query, queryOne, transaction } = require('../database/connection');
+const orderService = require('./order.service');
 const emailService = require('./email.service');
 const notificationService = require('./notification.service');
 
@@ -14,8 +15,15 @@ const razorpay = new Razorpay({
   key_secret: config.get('razorpay.keySecret'),
 });
 
+// The razorpay SDK doesn't forward a `timeout` constructor option to its
+// internal axios instance; set one so a slow/unreachable API fails fast
+// with a clear error instead of hanging the request indefinitely.
+razorpay.api.rq.defaults.timeout = 25000;
+
+const SESSION_TTL_MINUTES = 30;
+
 /**
- * Create Razorpay order and save to payments table
+ * Legacy: create Razorpay order for an already-existing order (used by adsmanager).
  */
 const createRazorpayOrder = async (orderId, userId) => {
   const order = await queryOne('SELECT * FROM orders WHERE id = ? AND user_id = ?', [orderId, userId]);
@@ -45,9 +53,44 @@ const createRazorpayOrder = async (orderId, userId) => {
 };
 
 /**
- * Verify Razorpay payment signature and mark order as paid
+ * Initiate Razorpay payment for a checkout.
+ * Validates the checkout & sizes the Razorpay order, but does NOT create the
+ * marketplace order — it is only created after payment is captured & verified.
  */
-const verifyPayment = async (razorpayOrderId, razorpayPaymentId, signature, orderId, userId) => {
+const initiateRazorpayOrder = async (userId, payload) => {
+  const { total } = await orderService.computeCheckout(userId, payload);
+
+  const amountPaise = Math.round(parseFloat(total) * 100);
+  if (amountPaise <= 0) {
+    throw Object.assign(new Error('Invalid order amount'), { statusCode: 400 });
+  }
+
+  const rzpOrder = await razorpay.orders.create({
+    amount: amountPaise,
+    currency: 'INR',
+    receipt: `CHK${Date.now()}`,
+    notes: { userId, checkout: '1' },
+  });
+
+  await query(
+    `INSERT INTO checkout_sessions (user_id, razorpay_order_id, payload, amount, status, expires_at)
+     VALUES (?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL ${SESSION_TTL_MINUTES} MINUTE))`,
+    [userId, rzpOrder.id, JSON.stringify(payload), total]
+  );
+
+  return {
+    razorpayOrderId: rzpOrder.id,
+    amount: amountPaise,
+    currency: 'INR',
+    key: config.get('razorpay.keyId'),
+  };
+};
+
+/**
+ * Verify Razorpay payment signature and, only after it passes, create the
+ * marketplace order and mark it as paid.
+ */
+const verifyPayment = async (razorpayOrderId, razorpayPaymentId, signature, userId) => {
   const expectedSig = crypto
     .createHmac('sha256', config.get('razorpay.keySecret'))
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
@@ -57,30 +100,60 @@ const verifyPayment = async (razorpayOrderId, razorpayPaymentId, signature, orde
     throw Object.assign(new Error('Payment verification failed. Invalid signature.'), { statusCode: 400 });
   }
 
+  const session = await queryOne(
+    'SELECT * FROM checkout_sessions WHERE razorpay_order_id = ?',
+    [razorpayOrderId]
+  );
+  if (!session) {
+    throw Object.assign(new Error('Checkout session not found. Please place the order again.'), { statusCode: 400 });
+  }
+  if (session.status !== 'pending') {
+    throw Object.assign(new Error('This payment has already been processed.'), { statusCode: 400 });
+  }
+  if (new Date() > new Date(session.expires_at)) {
+    await query('UPDATE checkout_sessions SET status = "expired" WHERE id = ?', [session.id]);
+    throw Object.assign(new Error('Payment session has expired. Please place the order again.'), { statusCode: 400 });
+  }
+
+  const payload = typeof session.payload === 'string' ? JSON.parse(session.payload) : session.payload;
+
+  // Only now create the order (deducts stock, clears cart, sends notifications)
+  let order;
+  try {
+    order = await orderService.createOrder(userId, payload);
+  } catch (err) {
+    await query('UPDATE checkout_sessions SET status = "failed" WHERE id = ?', [session.id]);
+    throw err;
+  }
+
   await transaction(async (conn) => {
     await conn.execute(
-      `UPDATE payments SET razorpay_payment_id = ?, razorpay_signature = ?, status = 'captured', paid_at = NOW()
-       WHERE razorpay_order_id = ?`,
-      [razorpayPaymentId, signature, razorpayOrderId]
+      `INSERT INTO payments (order_id, user_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, status, paid_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'captured', NOW())`,
+      [order.orderId, userId, razorpayOrderId, razorpayPaymentId, signature, session.amount]
     );
     await conn.execute(
       "UPDATE orders SET payment_status = 'paid', status = 'confirmed' WHERE id = ? AND user_id = ?",
-      [orderId, userId]
+      [order.orderId, userId]
+    );
+    await conn.execute(
+      "UPDATE checkout_sessions SET status = 'completed' WHERE id = ?",
+      [session.id]
     );
   });
 
-  const order = await queryOne('SELECT order_number, total FROM orders WHERE id = ?', [orderId]);
+  const paidOrder = await queryOne('SELECT order_number, total FROM orders WHERE id = ?', [order.orderId]);
   const user = await queryOne('SELECT name, email FROM users WHERE id = ?', [userId]);
   try {
     await notificationService.createNotification(userId, {
       title: 'Payment Successful',
-      message: `Payment of ₹${order.total} for order #${order.order_number} confirmed.`,
+      message: `Payment of ₹${paidOrder.total} for order #${paidOrder.order_number} confirmed.`,
       type: 'payment',
-      referenceId: orderId,
+      referenceId: order.orderId,
     });
   } catch (e) {}
 
-  return { message: 'Payment verified successfully', orderNumber: order.order_number };
+  return { message: 'Payment verified successfully', orderId: order.orderId, orderNumber: paidOrder.order_number };
 };
 
 /**
@@ -136,4 +209,4 @@ const handleWebhook = async (body, signature) => {
   }
 };
 
-module.exports = { createRazorpayOrder, verifyPayment, initiateRefund, handleWebhook };
+module.exports = { initiateRazorpayOrder, createRazorpayOrder, verifyPayment, initiateRefund, handleWebhook };

@@ -8,12 +8,20 @@ export const useCartStore = create(
       items: [],
       count: 0,
       total: 0,
+      subtotal: 0,
+      shipping: 0,
+      freeShippingThreshold: 499,
+      shippingCharge: 40,
       savedForLater: [],
 
       setCart: (cart) => {
         set({
           items: cart.items || [],
-          count: cart.count || 0,
+          count: cart.count ?? cart.itemCount ?? 0,
+          subtotal: cart.subtotal || 0,
+          shipping: cart.shipping || 0,
+          freeShippingThreshold: cart.freeShippingThreshold ?? 499,
+          shippingCharge: cart.shippingCharge ?? 40,
           total: cart.total || 0,
           savedForLater: cart.savedForLater || [],
         })
@@ -25,7 +33,11 @@ export const useCartStore = create(
           const cart = data.data
           set({
             items: cart.items || [],
-            count: cart.count || 0,
+            count: cart.count ?? cart.itemCount ?? 0,
+            subtotal: cart.subtotal || 0,
+            shipping: cart.shipping || 0,
+            freeShippingThreshold: cart.freeShippingThreshold ?? 499,
+            shippingCharge: cart.shippingCharge ?? 40,
             total: cart.total || 0,
             savedForLater: cart.savedForLater || [],
           })

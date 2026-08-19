@@ -6,7 +6,7 @@
 
 'use strict';
 
-const { queryRows, queryOne } = require('../database/connection');
+const { query, queryRows, queryOne } = require('../database/connection');
 const { getPagination } = require('../utils/pagination.util');
 const logger = require('../utils/logger.util');
 
@@ -37,7 +37,7 @@ function setIO(io) {
  * @returns {Promise<Object>} - Created notification
  */
 async function createNotification(userId, { title, message, type = 'system', referenceId = null, referenceType = null }) {
-  const [result] = await queryRows(
+  const [result] = await query(
     `INSERT INTO notifications (user_id, title, message, type, reference_id, reference_type)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [userId, title, message, type, referenceId, referenceType]
@@ -96,7 +96,7 @@ async function getUserNotifications(userId, page = 1, limit = 20) {
  * @returns {Promise<boolean>}
  */
 async function markAsRead(notificationId, userId) {
-  const [result] = await queryRows(
+  const [result] = await query(
     'UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?',
     [notificationId, userId]
   );
@@ -113,7 +113,7 @@ async function markAsRead(notificationId, userId) {
  * @returns {Promise<number>} - Number of rows affected
  */
 async function markAllAsRead(userId) {
-  const [result] = await queryRows(
+  const [result] = await query(
     'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0',
     [userId]
   );
@@ -148,7 +148,7 @@ async function getUnreadCount(userId) {
  * @returns {Promise<boolean>}
  */
 async function deleteNotification(id, userId) {
-  const [result] = await queryRows(
+  const [result] = await query(
     'DELETE FROM notifications WHERE id = ? AND user_id = ?',
     [id, userId]
   );

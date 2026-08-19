@@ -5,14 +5,30 @@
 const { query, queryRows, queryOne, transaction } = require('../database/connection');
 const { getPagination } = require('../utils/pagination.util');
 const { generateOrderNumber } = require('../utils/sku.util');
+const { getShippingConfig } = require('../utils/shipping.util');
 const emailService = require('./email.service');
 const notificationService = require('./notification.service');
 const config = require('config');
 
+// In-memory checkout locks to prevent duplicate submissions
+const checkoutLocks = new Map();
+
+async function acquireCheckoutLock(userId) {
+  if (checkoutLocks.has(userId)) {
+    throw Object.assign(new Error('An order is already being processed. Please wait.'), { statusCode: 409 });
+  }
+  checkoutLocks.set(userId, true);
+}
+
+function releaseCheckoutLock(userId) {
+  checkoutLocks.delete(userId);
+}
+
 /**
- * Create order from checkout
+ * Validate checkout & compute order totals (no DB writes).
+ * Used by createOrder and by the payment flow to size the Razorpay order.
  */
-const createOrder = async (userId, { addressId, items, couponCode, paymentMethod, notes }) => {
+const computeCheckout = async (userId, { addressId, items, couponCode, offerId, paymentMethod }) => {
   // Validate address
   const address = await queryOne('SELECT * FROM addresses WHERE id = ? AND user_id = ?', [addressId, userId]);
   if (!address) throw Object.assign(new Error('Delivery address not found'), { statusCode: 400 });
@@ -22,46 +38,60 @@ const createOrder = async (userId, { addressId, items, couponCode, paymentMethod
   const validatedItems = [];
   for (const item of items) {
     const product = await queryOne(
-      `SELECT p.*, v.id as vid, v.commission_rate, v.store_name
+      `SELECT p.*, v.id as vid, v.commission_rate, v.store_name, v.user_id as vendor_user_id
        FROM products p JOIN vendors v ON p.vendor_id = v.id
-       WHERE p.id = ? AND p.status = 'active' AND p.deleted_at IS NULL`,
+       WHERE p.id = ? AND p.deleted_at IS NULL`,
       [item.productId]
     );
-    if (!product) throw Object.assign(new Error(`Product ${item.productId} not available`), { statusCode: 400 });
+    if (!product || product.status !== 'active') {
+      throw Object.assign(new Error(`Product ${item.productName} is unavailable`), { statusCode: 400 });
+    }
 
-    let price = parseFloat(product.price);
+    let price = product.price;
     let variantName = null;
     if (item.variantId) {
-      const variant = await queryOne('SELECT * FROM product_variants WHERE id = ? AND product_id = ? AND is_active = 1', [item.variantId, item.productId]);
-      if (!variant) throw Object.assign(new Error('Selected variant not available'), { statusCode: 400 });
-      if (variant.stock < item.quantity) throw Object.assign(new Error(`Insufficient stock for ${product.name}`), { statusCode: 400 });
-      price = parseFloat(variant.price);
-      variantName = variant.name;
+      const variant = await queryOne(
+        `SELECT * FROM product_variants WHERE id = ? AND product_id = ?`,
+        [item.variantId, item.productId]
+      );
+      if (!variant || !variant.is_active) {
+        throw Object.assign(new Error(`Variant for ${item.productName} is unavailable`), { statusCode: 400 });
+      }
+      if (variant.stock < item.quantity) {
+        throw Object.assign(new Error(`Insufficient stock for ${item.productName}`), { statusCode: 400 });
+      }
+      price = variant.price;
+      variantName = Object.entries(JSON.parse(variant.attributes))
+        .map(([k, v]) => `${k}: ${v}`).join(', ');
     } else {
-      if (product.stock < item.quantity) throw Object.assign(new Error(`Insufficient stock for ${product.name}`), { statusCode: 400 });
+      if (product.stock < item.quantity) {
+        throw Object.assign(new Error(`Insufficient stock for ${item.productName}`), { statusCode: 400 });
+      }
     }
 
     const itemTotal = price * item.quantity;
-    const commissionRate = parseFloat(product.commission_rate);
-    const commissionAmount = (itemTotal * commissionRate) / 100;
-    const vendorPayout = itemTotal - commissionAmount;
-
     subtotal += itemTotal;
+
+    const commRate = parseFloat(product.commission_rate || 0.1);
+    const commAmount = itemTotal * commRate;
+    const vendorPayout = itemTotal - commAmount;
+
     validatedItems.push({
-      productId: product.id,
-      vendorId: product.vendor_id || product.vid,
+      productId: item.productId,
+      vendorId: product.vendor_id,
+      vendorUserId: product.vendor_user_id,
       variantId: item.variantId || null,
       productName: product.name,
-      productImage: null,
+      productImage: item.productImage || null,
       variantName,
       quantity: item.quantity,
       unitPrice: price,
       totalPrice: itemTotal,
-      commissionRate,
-      commissionAmount,
+      commissionRate: commRate,
+      commissionAmount: commAmount,
       vendorPayout,
-      returnType: product.return_type,
-      returnWindow: product.return_window,
+      returnType: product.return_type || 'none',
+      returnWindow: product.return_window || 0
     });
   }
 
@@ -70,88 +100,182 @@ const createOrder = async (userId, { addressId, items, couponCode, paymentMethod
   let couponId = null;
   if (couponCode) {
     const coupon = await queryOne(
-      `SELECT * FROM coupons WHERE code = ? AND is_active = 1
-       AND valid_from <= NOW() AND valid_to >= NOW()`,
+      `SELECT * FROM coupons WHERE code = ? AND is_active = 1 
+       AND valid_from <= NOW() AND valid_to >= NOW() AND is_active = 1`,
       [couponCode]
     );
     if (coupon) {
-      if (!coupon.min_order_amount || subtotal >= parseFloat(coupon.min_order_amount)) {
-        const usageCount = await queryOne(
-          'SELECT COUNT(*) as cnt FROM coupon_usages WHERE coupon_id = ? AND user_id = ?',
-          [coupon.id, userId]
-        );
-        if (usageCount.cnt < coupon.max_uses_per_user) {
-          if (coupon.type === 'percentage') {
-            discount = (subtotal * parseFloat(coupon.discount_value)) / 100;
-            if (coupon.max_discount) discount = Math.min(discount, parseFloat(coupon.max_discount));
-          } else if (coupon.type === 'fixed') {
-            discount = Math.min(parseFloat(coupon.discount_value), subtotal);
+      if (subtotal >= parseFloat(coupon.min_order_amount || 0)) {
+        if (!coupon.max_uses || coupon.used_count < coupon.max_uses) {
+          const [usages] = await query(
+            'SELECT COUNT(*) as count FROM coupon_usages WHERE coupon_id = ? AND user_id = ?',
+            [coupon.id, userId]
+          );
+          if (usages[0].count < (coupon.max_uses_per_user || 1)) {
+            if (coupon.type === 'fixed') {
+              discount = parseFloat(coupon.discount_value);
+            } else if (coupon.type === 'percentage') {
+              discount = subtotal * (parseFloat(coupon.discount_value) / 100);
+              if (coupon.max_discount) {
+                discount = Math.min(discount, parseFloat(coupon.max_discount));
+              }
+            }
+            discount = parseFloat(discount.toFixed(2));
+            couponId = coupon.id;
           }
-          couponId = coupon.id;
         }
       }
     }
   }
 
-  const shippingCharges = subtotal >= 499 ? 0 : 40;
-  const total = subtotal - discount + shippingCharges;
-  const orderNumber = generateOrderNumber();
-  const cancelDeadline = new Date(Date.now() + 15 * 60 * 1000);
-
-  let orderId;
-  await transaction(async (conn) => {
-    // Create order
-    const [orderResult] = await conn.execute(
-      `INSERT INTO orders (order_number, user_id, address_id, coupon_id, subtotal, discount, shipping_charges, total, payment_method, cancel_deadline, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [orderNumber, userId, addressId, couponId, subtotal, discount, shippingCharges, total, paymentMethod || 'cod', cancelDeadline, notes || null]
-    );
-
-    // Get order id
-    const [ord] = await conn.execute('SELECT id FROM orders WHERE order_number = ?', [orderNumber]);
-    orderId = ord[0].id;
-
-    // Create order items & deduct stock
-    for (const item of validatedItems) {
-      await conn.execute(
-        `INSERT INTO order_items (order_id, product_id, vendor_id, variant_id, product_name, product_image,
-          variant_name, quantity, unit_price, total_price, commission_rate, commission_amount, vendor_payout, return_type, return_window)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, item.productId, item.vendorId, item.variantId, item.productName, item.productImage,
-          item.variantName, item.quantity, item.unitPrice, item.totalPrice,
-          item.commissionRate, item.commissionAmount, item.vendorPayout, item.returnType, item.returnWindow]
-      );
-
-      // Deduct stock
-      if (item.variantId) {
-        await conn.execute('UPDATE product_variants SET stock = stock - ? WHERE id = ?', [item.quantity, item.variantId]);
-      } else {
-        await conn.execute('UPDATE products SET stock = stock - ?, sale_count = sale_count + ? WHERE id = ?', [item.quantity, item.quantity, item.productId]);
-      }
+  // Apply offer
+  let offerDiscount = 0;
+  let offerIdApplied = null;
+  if (offerId) {
+    try {
+      const offerService = require('./offer.service');
+      const cartItemsForOffer = validatedItems.map(i => ({
+        product_id: i.productId,
+        variant_id: i.variantId,
+        unit_price: i.unitPrice,
+        price: i.unitPrice,
+        quantity: i.quantity
+      }));
+      const result = await offerService.applyOffer(offerId, userId, cartItemsForOffer, subtotal);
+      offerDiscount = result.discount;
+      offerIdApplied = offerId;
+    } catch (err) {
+      // Offer validation failed, skip but don't block order
+      console.warn('Offer validation failed:', err.message);
     }
-
-    // Mark coupon used
-    if (couponId) {
-      await conn.execute('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?', [couponId]);
-      await conn.execute(
-        'INSERT INTO coupon_usages (coupon_id, user_id, order_id, discount) VALUES (?, ?, ?, ?)',
-        [couponId, userId, orderId, discount]
-      );
-    }
-
-    // Clear cart
-    await conn.execute('DELETE FROM carts WHERE user_id = ? AND saved_for_later = 0', [userId]);
-  });
-
-  // If COD, mark payment as pending COD
-  if (paymentMethod === 'cod') {
-    await query('UPDATE orders SET payment_status = "pending", status = "confirmed" WHERE id = ?', [orderId]);
   }
 
-  // Send notification
-  const user = await queryOne('SELECT name, email FROM users WHERE id = ?', [userId]);
+  // Apply online payment offer (e.g. ONLINE_PAY_OFF) when paying via gateway
+  let onlinePayOff = 0;
+  if (paymentMethod === 'razorpay') {
+    const paySetting = await queryOne(
+      "SELECT `value` FROM platform_settings WHERE `key` = 'online_pay_off'"
+    );
+    if (paySetting && parseFloat(paySetting.value) > 0) {
+      onlinePayOff = Math.min(parseFloat(paySetting.value), subtotal);
+    }
+  }
+
+  const totalDiscount = discount + offerDiscount + onlinePayOff;
+
+  const { shippingCharge, freeShippingThreshold } = await getShippingConfig();
+  const shippingCharges = subtotal >= freeShippingThreshold ? 0 : shippingCharge;
+  const total = subtotal - totalDiscount + shippingCharges;
+
+  return { address, validatedItems, subtotal, discount, offerDiscount, onlinePayOff, totalDiscount, shippingCharges, total, couponId, offerIdApplied };
+};
+
+/**
+ * Create order from checkout
+ */
+const createOrder = async (userId, { addressId, items, couponCode, offerId, paymentMethod, notes }) => {
+  await acquireCheckoutLock(userId);
   try {
-    await emailService.sendOrderPlacedEmail(user.email, user.name, { orderNumber, total, items: validatedItems.length });
+    const { address, validatedItems, subtotal, discount, offerDiscount, totalDiscount, shippingCharges, total, couponId, offerIdApplied } = await computeCheckout(userId, { addressId, items, couponCode, offerId, paymentMethod });
+
+    const orderNumber = generateOrderNumber();
+    const cancelDeadline = new Date(Date.now() + 15 * 60 * 1000);
+
+    let orderId;
+    await transaction(async (conn) => {
+      // Create order
+      const [orderResult] = await conn.execute(
+        `INSERT INTO orders (order_number, user_id, address_id, coupon_id, subtotal, discount, shipping_charges, total, payment_method, cancel_deadline, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderNumber, userId, addressId, couponId, subtotal, totalDiscount, shippingCharges, total, paymentMethod || 'cod', cancelDeadline, notes || null]
+      );
+
+      // Get order id
+      const [ord] = await conn.execute('SELECT id FROM orders WHERE order_number = ?', [orderNumber]);
+      orderId = ord[0].id;
+
+      // Create order items & deduct stock
+      for (const item of validatedItems) {
+        await conn.execute(
+          `INSERT INTO order_items (order_id, product_id, vendor_id, variant_id, product_name, product_image,
+            variant_name, quantity, unit_price, total_price, commission_rate, commission_amount, vendor_payout, return_type, return_window)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.vendorId, item.variantId, item.productName, item.productImage,
+            item.variantName, item.quantity, item.unitPrice, item.totalPrice,
+            item.commissionRate, item.commissionAmount, item.vendorPayout, item.returnType, item.returnWindow]
+        );
+
+        // Deduct stock
+        if (item.variantId) {
+          await conn.execute('UPDATE product_variants SET stock = stock - ? WHERE id = ?', [item.quantity, item.variantId]);
+        } else {
+          await conn.execute('UPDATE products SET stock = stock - ?, sale_count = sale_count + ? WHERE id = ?', [item.quantity, item.quantity, item.productId]);
+        }
+      }
+
+      // Mark coupon used
+      if (couponId) {
+        await conn.execute('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?', [couponId]);
+        await conn.execute(
+          'INSERT INTO coupon_usages (coupon_id, user_id, order_id, discount) VALUES (?, ?, ?, ?)',
+          [couponId, userId, orderId, discount]
+        );
+      }
+
+      // Mark offer used
+      if (offerIdApplied) {
+        const offerService = require('./offer.service');
+        await offerService.recordUsage(offerIdApplied, userId, orderId, offerDiscount, conn);
+      }
+
+      // COD: mark payment as pending COD within the same transaction
+      if (paymentMethod === 'cod') {
+        await conn.execute("UPDATE orders SET payment_status = 'pending', status = 'confirmed' WHERE id = ?", [orderId]);
+      }
+
+      // Clear cart
+      await conn.execute('DELETE FROM carts WHERE user_id = ? AND saved_for_later = 0', [userId]);
+    });
+
+    // Fire-and-forget confirmation emails & notifications so the HTTP
+    // response is not delayed by SMTP (order is already committed).
+    sendOrderNotifications(userId, address, orderId, orderNumber, total, paymentMethod, validatedItems)
+      .catch(() => {});
+
+    return { orderId, orderNumber, total };
+  } finally {
+    releaseCheckoutLock(userId);
+  }
+};
+
+/**
+ * Send confirmation emails & notifications for a placed order.
+ * Runs in the background (fire-and-forget); failures are swallowed.
+ */
+async function sendOrderNotifications(userId, address, orderId, orderNumber, total, paymentMethod, validatedItems) {
+  const user = await queryOne('SELECT name, email FROM users WHERE id = ?', [userId]);
+  const orderForMail = {
+    id: orderId,
+    order_number: orderNumber,
+    total,
+    payment_method: paymentMethod,
+    items: validatedItems.map(i => ({
+      product_name: i.productName,
+      variant_name: i.variantName,
+      quantity: i.quantity,
+      unit_price: i.unitPrice,
+      total_price: i.totalPrice,
+    })),
+  };
+  try {
+    await emailService.sendOrderPlacedEmail(user.email, user.name, orderForMail);
+  } catch (e) {}
+  if (address.email) {
+    try {
+      await emailService.sendOrderPlacedEmail(address.email, user.name, orderForMail);
+    } catch (e) {}
+  }
+  try {
     await notificationService.createNotification(userId, {
       title: 'Order Placed!',
       message: `Your order #${orderNumber} has been placed successfully.`,
@@ -161,8 +285,22 @@ const createOrder = async (userId, { addressId, items, couponCode, paymentMethod
     });
   } catch (e) {}
 
-  return { orderId, orderNumber, total };
-};
+  const vendorIds = [...new Set(validatedItems.map(i => i.vendorId))];
+  for (const vid of vendorIds) {
+    const vendorItems = validatedItems.filter(i => i.vendorId === vid);
+    const vendorUserId = vendorItems[0]?.vendorUserId;
+    if (!vendorUserId) continue;
+    try {
+      await notificationService.createNotification(vendorUserId, {
+        title: 'New Order Received!',
+        message: `New order #${orderNumber} for ${vendorItems.length} item(s) — ₹${vendorItems.reduce((s, i) => s + i.totalPrice, 0).toFixed(2)}. Confirm it in your Orders page.`,
+        type: 'order',
+        referenceId: orderId,
+        referenceType: 'order',
+      });
+    } catch (e) {}
+  }
+}
 
 /**
  * Get single order (ownership checked)
@@ -210,7 +348,8 @@ const getUserOrders = async (userId, filters = {}) => {
   const orders = await queryRows(
     `SELECT o.id, o.order_number, o.status, o.payment_status, o.total, o.created_at, o.cancel_deadline,
       COUNT(oi.id) as item_count,
-      GROUP_CONCAT(oi.product_name SEPARATOR ', ') as product_names
+      GROUP_CONCAT(oi.product_name SEPARATOR ', ') as product_names,
+      GROUP_CONCAT(DISTINCT (SELECT url FROM product_images WHERE product_id = oi.product_id AND is_primary = 1 LIMIT 1)) as product_images
      FROM orders o LEFT JOIN order_items oi ON o.id = oi.order_id
      WHERE ${where} GROUP BY o.id ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
     [...params, limit, offset]
@@ -322,7 +461,7 @@ const getVendorOrders = async (vendorId, filters = {}) => {
   const where = conditions.join(' AND ');
 
   const items = await queryRows(
-    `SELECT oi.*, o.order_number, o.created_at as order_date, o.payment_status,
+    `SELECT oi.*, o.order_number, o.created_at as order_date, o.payment_status, o.notes,
       u.name as customer_name, u.phone as customer_phone,
       a.city, a.state, a.pincode
      FROM order_items oi
@@ -360,4 +499,5 @@ const getOrderStats = async () => {
 module.exports = {
   createOrder, getOrder, getUserOrders, cancelOrder, getAllOrders,
   updateOrderStatus, getVendorOrders, getOrderStats,
+  computeCheckout,
 };

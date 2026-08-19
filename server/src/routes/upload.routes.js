@@ -5,7 +5,7 @@
 
 const express = require('express');
 const { protect } = require('../middlewares/auth.middleware');
-const { uploadProductImages } = require('../middlewares/upload.middleware');
+const { uploadProductImages, createGenericImageUploader } = require('../middlewares/upload.middleware');
 const { asyncHandler } = require('../middlewares/error.middleware');
 const { sendSuccess, sendError } = require('../utils/response.util');
 const { uploadRateLimit } = require('../middlewares/rateLimit.middleware');
@@ -35,6 +35,36 @@ router.post('/images', protect, uploadRateLimit, uploadProductImages, asyncHandl
   }
   const urls = req.files.map(f => `/uploads/products/${f.filename}`);
   sendSuccess(res, { urls }, `${urls.length} image(s) uploaded successfully`);
+}));
+
+/**
+ * POST /upload/image/:kind
+ * Upload a single image into a purpose-built subdirectory (categories, brands, ...)
+ */
+const UPLOAD_KINDS = {
+  category: 'categories',
+  brand: 'brands',
+  banner: 'banners',
+  festival: 'festivals',
+  offer: 'offers',
+  video: 'videos',
+};
+
+const kindUploaders = Object.fromEntries(
+  Object.entries(UPLOAD_KINDS).map(([kind, dir]) => [kind, createGenericImageUploader(dir)])
+);
+
+router.post('/image/:kind', protect, uploadRateLimit, (req, res, next) => {
+  const uploader = kindUploaders[req.params.kind];
+  if (!uploader) return sendError(res, 'Invalid upload kind', 400);
+  uploader(req, res, next);
+}, asyncHandler(async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return sendError(res, 'No file uploaded', 400);
+  }
+  const file = req.files[0];
+  const url = `/uploads/${UPLOAD_KINDS[req.params.kind]}/${file.filename}`;
+  sendSuccess(res, { url }, 'Image uploaded successfully');
 }));
 
 module.exports = router;

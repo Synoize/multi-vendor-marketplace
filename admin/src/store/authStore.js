@@ -11,10 +11,16 @@ const useAuthStore = create(
 
       setUser: (user) => set({ user, isAuthenticated: true }),
 
-      logout: () => {
-        localStorage.removeItem('adminToken');
-        set({ user: null, isAuthenticated: false });
-        window.location.href = '/login';
+      logout: async () => {
+        try {
+          await api.post('/auth/logout');
+        } catch (error) {
+          // ignore server errors; still clear local session
+        } finally {
+          set({ user: null, isAuthenticated: false });
+          useAuthStore.persist.clearStorage();
+          window.location.href = '/login';
+        }
       },
 
       checkAuth: async () => {
@@ -26,14 +32,15 @@ const useAuthStore = create(
             set({ user, isAuthenticated: true, isLoading: false });
             return true;
           } else {
-            // Not admin — clear state
-            localStorage.removeItem('adminToken');
             set({ user: null, isAuthenticated: false, isLoading: false });
             return false;
           }
         } catch (error) {
-          localStorage.removeItem('adminToken');
-          set({ user: null, isAuthenticated: false, isLoading: false });
+          // Only treat 401 as logged-out. A 429 (rate limit) or a network
+          // error must NOT log the user out.
+          if (error?.response?.status === 401) {
+            set({ user: null, isAuthenticated: false, isLoading: false });
+          }
           return false;
         }
       },

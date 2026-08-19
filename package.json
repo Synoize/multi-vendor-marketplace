@@ -11,6 +11,7 @@
     "adsmanager"
   ],
   "scripts": {
+    "start": "node server/src/server.js",
     "setup": "npm install && npm run setup:all",
     "setup:all": "npm run setup:server && npm run setup:app && npm run setup:vendor && npm run setup:admin && npm run setup:ads",
     "setup:server": "cd server && npm install",

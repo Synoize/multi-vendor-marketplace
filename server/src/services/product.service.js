@@ -21,6 +21,9 @@ const generateUniqueSlug = async (baseSlug) => {
   return slug;
 };
 
+/** Coerce a value to a TINYINT bit (1/0). Missing/falsy-string aware. */
+const toBit = (v) => (v === false || v === 0 || v === '0' || v === 'false' ? 0 : 1);
+
 /** Create a new product */
 const createProduct = async (vendorId, data, imageFiles = []) => {
   const { name, description, short_description, price, mrp, cost_price, stock, category_id, brand_id,
@@ -41,8 +44,8 @@ const createProduct = async (vendorId, data, imageFiles = []) => {
       [productId, vendorId, category_id, brand_id || null, name, slug, description || null,
         short_description || null, price, mrp, cost_price || null, stock || 0, sku,
         weight || null, dimensions ? JSON.stringify(dimensions) : null,
-        is_returnable !== false ? 1 : 0, return_type || 'full_return', return_window || 7,
-        is_cod_available !== false ? 1 : 0,
+        toBit(is_returnable), return_type || 'full_return', return_window || 7,
+        toBit(is_cod_available),
         seo_title || null, seo_description || null, seo_keywords || null,
         tags ? JSON.stringify(tags) : null, low_stock_threshold || 5]
     );
@@ -60,13 +63,13 @@ const createProduct = async (vendorId, data, imageFiles = []) => {
 };
 
 /** Update product */
-const updateProduct = async (productId, vendorId, data) => {
+const updateProduct = async (productId, vendorId, data, imageFiles = []) => {
   const product = await queryOne('SELECT id FROM products WHERE id = ? AND vendor_id = ? AND deleted_at IS NULL', [productId, vendorId]);
   if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
 
   const fields = ['name','description','short_description','price','mrp','cost_price','stock',
-    'category_id','brand_id','weight','is_returnable','return_type','return_window',
-    'is_cod_available','seo_title','seo_description','seo_keywords','low_stock_threshold'];
+    'category_id','brand_id','weight','return_type','return_window',
+    'seo_title','seo_description','seo_keywords','low_stock_threshold'];
 
   const updates = [];
   const params = [];
@@ -75,9 +78,43 @@ const updateProduct = async (productId, vendorId, data) => {
   }
   if (data.dimensions !== undefined) { updates.push('dimensions = ?'); params.push(JSON.stringify(data.dimensions)); }
   if (data.tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(data.tags)); }
-  if (updates.length === 0) return;
-  params.push(productId);
-  await query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, params);
+  if (data.is_returnable !== undefined) { updates.push('is_returnable = ?'); params.push(toBit(data.is_returnable)); }
+  if (data.is_cod_available !== undefined) { updates.push('is_cod_available = ?'); params.push(toBit(data.is_cod_available)); }
+  if (updates.length) {
+    params.push(productId);
+    await query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, params);
+  }
+
+  // Prune images not kept by the vendor (before inserting new ones, otherwise
+  // an empty `existing_images` list would also wipe the newly uploaded files)
+  if (data.existing_images !== undefined) {
+    const keep = Array.isArray(data.existing_images) ? data.existing_images : [];
+    const keepIds = keep.map((img) => (typeof img === 'string' ? img : img.id)).filter(Boolean);
+    if (keepIds.length) {
+      const placeholders = keepIds.map(() => '?').join(',');
+      await query(`DELETE FROM product_images WHERE product_id = ? AND id NOT IN (${placeholders})`, [productId, ...keepIds]);
+    } else {
+      await query('DELETE FROM product_images WHERE product_id = ?', [productId]);
+    }
+  }
+
+  // New image files
+  if (imageFiles.length) {
+    await addProductImages(productId, vendorId, imageFiles.map((f) => `/uploads/products/${f.filename}`));
+  }
+};
+
+/** Vendor toggles their own product status */
+const updateProductStatus = async (productId, vendorId, status) => {
+  const allowed = ['active', 'inactive', 'draft', 'out_of_stock'];
+  if (!status || !allowed.includes(status)) {
+    throw Object.assign(new Error('Invalid status'), { statusCode: 400 });
+  }
+  const result = await query(
+    "UPDATE products SET status = ? WHERE id = ? AND vendor_id = ? AND deleted_at IS NULL",
+    [status, productId, vendorId]
+  );
+  if (result[0].affectedRows === 0) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
 };
 
 /** Soft delete */
@@ -95,7 +132,7 @@ const getProduct = async (slugOrId, userId = null) => {
     `SELECT p.*, 
       c.name as category_name, c.slug as category_slug,
       b.name as brand_name, b.logo as brand_logo,
-      v.store_name, v.store_logo, v.rating as vendor_rating, v.total_reviews as vendor_reviews,
+      v.store_name, v.store_logo, v.store_description, v.rating as vendor_rating, v.total_reviews as vendor_reviews, v.total_sales as vendor_total_sales,
       u.name as vendor_owner_name
      FROM products p
      LEFT JOIN categories c ON p.category_id = c.id
@@ -138,7 +175,7 @@ const listProducts = async (filters = {}) => {
   const params = [];
 
   if (search) { conditions.push('p.name LIKE ?'); params.push(`%${search}%`); }
-  if (category) { conditions.push('c.slug = ?'); params.push(category); }
+  if (category) { conditions.push('(c.slug = ? OR c.parent_id = (SELECT id FROM categories WHERE slug = ?))'); params.push(category, category); }
   if (brand) { conditions.push('b.slug = ?'); params.push(brand); }
   if (vendor_id) { conditions.push('p.vendor_id = ?'); params.push(vendor_id); }
   if (min_price) { conditions.push('p.price >= ?'); params.push(parseFloat(min_price)); }
@@ -228,14 +265,20 @@ const getSearchSuggestions = async (q, limit = 8) => {
 const approveProduct = async (productId) => query("UPDATE products SET status = 'active' WHERE id = ?", [productId]);
 const rejectProduct = async (productId, reason) => query("UPDATE products SET status = 'rejected', rejection_reason = ? WHERE id = ?", [reason, productId]);
 const blockProduct = async (productId) => query("UPDATE products SET status = 'blocked' WHERE id = ?", [productId]);
+const unblockProduct = async (productId) => query("UPDATE products SET status = 'active' WHERE id = ?", [productId]);
+const setFeaturedProduct = async (productId, featured) =>
+  query('UPDATE products SET is_featured = ? WHERE id = ?', [featured ? 1 : 0, productId]);
 
 const addProductImages = async (productId, vendorId, imageUrls) => {
   const product = await queryOne('SELECT id FROM products WHERE id = ? AND vendor_id = ?', [productId, vendorId]);
   if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
   const [[{ c }]] = await query('SELECT COUNT(*) as c FROM product_images WHERE product_id = ?', [productId]);
+  const [[{ p }]] = await query('SELECT COUNT(*) as p FROM product_images WHERE product_id = ? AND is_primary = 1', [productId]);
   let sortOrder = c;
+  let setPrimary = p === 0;
   for (const url of imageUrls) {
-    await query('INSERT INTO product_images (product_id, url, sort_order) VALUES (?, ?, ?)', [productId, url, sortOrder++]);
+    await query('INSERT INTO product_images (product_id, url, is_primary, sort_order) VALUES (?, ?, ?, ?)', [productId, url, setPrimary ? 1 : 0, sortOrder++]);
+    setPrimary = false;
   }
 };
 
@@ -244,10 +287,23 @@ const createVariant = async (productId, vendorId, data) => {
   if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
   const { name, price, mrp, stock, attributes, image } = data;
   const sku = generateSKU('VAR', vendorId);
+  const variantId = uuidv4();
   await query(
-    'INSERT INTO product_variants (product_id, sku, name, attributes, price, mrp, stock, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [productId, sku, name, JSON.stringify(attributes || {}), price, mrp, stock || 0, image || null]
+    'INSERT INTO product_variants (id, product_id, sku, name, attributes, price, mrp, stock, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [variantId, productId, sku, name, JSON.stringify(attributes || {}), price, mrp, stock || 0, image || null]
   );
+  return {
+    id: variantId,
+    product_id: productId,
+    sku,
+    name,
+    attributes: attributes || {},
+    price,
+    mrp,
+    stock: stock || 0,
+    image: image || null,
+    is_active: 1,
+  };
 };
 
 const getVendorProducts = async (vendorId, filters = {}) => {
@@ -276,9 +332,18 @@ const getLowStockProducts = async (vendorId, threshold = 5) =>
      ORDER BY stock ASC`, [vendorId]
   );
 
+/** Get min/max price stats from active products */
+const getPriceStats = async () => {
+  const [[row]] = await query(
+    `SELECT MIN(price) as min_price, MAX(price) as max_price FROM products WHERE status = 'active' AND deleted_at IS NULL`
+  );
+  return { min_price: row?.min_price || 0, max_price: row?.max_price || 0 };
+};
+
 module.exports = {
-  createProduct, updateProduct, deleteProduct, getProduct, listProducts,
+  createProduct, updateProduct, updateProductStatus, deleteProduct, getProduct, listProducts,
   getFeaturedProducts, getTrendingProducts, getRelatedProducts, getRecentlyViewed,
-  getSearchSuggestions, approveProduct, rejectProduct, blockProduct,
+  getSearchSuggestions, approveProduct, rejectProduct, blockProduct, unblockProduct, setFeaturedProduct,
   addProductImages, createVariant, getVendorProducts, getLowStockProducts,
+  getPriceStats,
 };

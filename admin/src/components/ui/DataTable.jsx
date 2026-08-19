@@ -1,73 +1,189 @@
-import Spinner from './Spinner';
+import { useMemo, useState, useCallback } from 'react';
+import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
 
 export default function DataTable({
-  columns,
+  columns: rawColumns = [],
   data = [],
   loading = false,
   emptyMessage = 'No data found',
   onRowClick,
-  skeletonRows = 5,
-  className = '',
+  total,
+  page,
+  onPageChange,
+  sorting: externalSorting,
+  onSortingChange: externalOnSortingChange,
+  pageSize: externalPageSize = 10,
+  enableSearch = true,
+  enableExport = true,
+  enableColumnVisibility = true,
+  enablePagination = true,
+  enableColumnFilters = false,
+  enableRowSelection = false,
+  manualPagination = false,
+  manualSorting = false,
+  renderTopToolbarCustomActions,
+  muiTableBodyRowProps: customRowProps,
 }) {
+  const columns = useMemo(() => {
+    return rawColumns.map((col) => ({
+      accessorKey: col.key,
+      header: col.label,
+      size: col.key === 'id' ? 80 : undefined,
+      enableSorting: col.sortable !== false,
+      Cell: col.render
+        ? ({ cell, row }) => col.render(cell.getValue(), row.original)
+        : undefined,
+    }));
+  }, [rawColumns]);
+
+  const [internalSorting, setInternalSorting] = useState([]);
+  const [internalPageSize, setInternalPageSize] = useState(externalPageSize);
+  const [internalPageIndex, setInternalPageIndex] = useState(0);
+
+  const sorting = externalSorting ?? internalSorting;
+  const isServerPaginated = page !== undefined;
+
+  const handleSortingChange = useCallback(
+    (updater) => {
+      const newSorting =
+        typeof updater === 'function'
+          ? updater(sorting)
+          : updater;
+      if (externalOnSortingChange) {
+        externalOnSortingChange(newSorting);
+      } else {
+        setInternalSorting(newSorting);
+      }
+    },
+    [sorting, externalOnSortingChange],
+  );
+
+  const pageSize = isServerPaginated ? (externalPageSize !== 10 ? externalPageSize : internalPageSize) : internalPageSize;
+
+  const paginationState = useMemo(() => ({
+    pageIndex: isServerPaginated ? page - 1 : internalPageIndex,
+    pageSize,
+  }), [isServerPaginated, page, internalPageIndex, pageSize]);
+
+  const handlePaginationChange = useCallback(
+    (updater) => {
+      const newPagination =
+        typeof updater === 'function'
+          ? updater(paginationState)
+          : updater;
+      const newPageIndex = newPagination.pageIndex;
+      const newPageSize = newPagination.pageSize;
+      setInternalPageSize(newPageSize);
+      setInternalPageIndex(newPageIndex);
+      if (onPageChange) {
+        onPageChange(newPageIndex + 1, newPageSize);
+      }
+    },
+    [onPageChange, paginationState],
+  );
+
+  const table = useMaterialReactTable({
+    columns,
+    data,
+    state: {
+      isLoading: loading,
+      pagination: paginationState,
+      sorting,
+    },
+    onPaginationChange: handlePaginationChange,
+    onSortingChange: handleSortingChange,
+    manualPagination,
+    manualSorting,
+    rowCount: total ?? data.length,
+
+    enablePagination,
+    enableColumnActions: false,
+    enableColumnFilters,
+    enableSorting: true,
+    enableHiding: enableColumnVisibility,
+    enableTopToolbar: enableSearch || enableExport || enableColumnVisibility || !!renderTopToolbarCustomActions,
+    enableBottomToolbar: enablePagination,
+    enableRowSelection,
+
+    initialState: {
+      density: 'compact',
+      showColumnFilters: enableColumnFilters,
+    },
+
+    mrtTheme: {
+      baseColor: '#f9fafb',
+      bgcolor: 'transparent',
+    },
+
+    renderTopToolbarCustomActions: ({ table }) => {
+      if (renderTopToolbarCustomActions) {
+        return renderTopToolbarCustomActions({ table, data });
+      }
+      return undefined;
+    },
+
+    muiTableBodyRowProps: customRowProps || (onRowClick
+      ? ({ row }) => ({
+          onClick: () => onRowClick(row.original),
+          sx: { cursor: 'pointer' },
+        })
+      : undefined),
+
+    muiTablePaperProps: {
+      elevation: 0,
+      sx: {
+        border: 'none',
+        background: 'transparent',
+      },
+    },
+
+    muiTableContainerProps: {
+      sx: { maxHeight: 'none' },
+    },
+
+    muiTableProps: {
+      sx: {
+        borderCollapse: 'separate',
+        borderSpacing: 0,
+      },
+    },
+
+    muiTableHeadCellProps: {
+      sx: {
+        fontSize: '11px',
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        color: '#6b7280',
+        borderBottom: '1px solid #f3f4f6',
+        background: '#fafafa',
+        padding: '12px 16px',
+      },
+    },
+
+    muiTableBodyCellProps: {
+      sx: {
+        borderBottom: '1px solid #f3f4f6',
+        padding: '12px 16px',
+        fontSize: '14px',
+      },
+    },
+
+    muiTableBodyProps: {
+      sx: {
+        '& tr:hover': {
+          backgroundColor: '#f9fafb !important',
+        },
+      },
+    },
+
+    renderEmptySkeletonRows: () => null,
+    noResultsMessage: emptyMessage,
+  });
+
   return (
-    <div className={`overflow-x-auto ${className}`}>
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-white/10">
-            {columns.map((col) => (
-              <th
-                key={col.key || col.label}
-                className="table-header text-left whitespace-nowrap"
-                style={col.width ? { width: col.width } : undefined}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            Array.from({ length: skeletonRows }).map((_, i) => (
-              <tr key={i} className="border-b border-white/5">
-                {columns.map((col) => (
-                  <td key={col.key || col.label} className="table-cell">
-                    <div className="h-4 bg-white/5 rounded animate-pulse" style={{ width: col.skeletonWidth || '80%' }} />
-                  </td>
-                ))}
-              </tr>
-            ))
-          ) : data.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="text-center py-16 text-gray-500">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                    </svg>
-                  </div>
-                  <p className="text-sm">{emptyMessage}</p>
-                </div>
-              </td>
-            </tr>
-          ) : (
-            data.map((row, rowIndex) => (
-              <tr
-                key={row._id || row.id || rowIndex}
-                className={`table-row ${onRowClick ? 'cursor-pointer' : ''}`}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columns.map((col) => (
-                  <td key={col.key || col.label} className="table-cell">
-                    {col.render
-                      ? col.render(row[col.key], row)
-                      : String(row[col.key] ?? '—')}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+    <div className="overflow-x-auto">
+      <MaterialReactTable table={table} />
     </div>
   );
 }

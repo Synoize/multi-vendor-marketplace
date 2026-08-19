@@ -10,17 +10,23 @@ const paymentService = require('../services/payment.service');
 
 const router = express.Router();
 
-/** POST /payments/create-order — create Razorpay order */
+/** POST /payments/create-order — legacy: create Razorpay order for existing order (adsmanager) */
 router.post('/create-order', protect, asyncHandler(async (req, res) => {
   const { orderId } = req.body;
   const data = await paymentService.createRazorpayOrder(orderId, req.user.id);
   sendCreated(res, data, 'Payment order created');
 }));
 
-/** POST /payments/verify — verify payment after Razorpay callback */
+/** POST /payments/initiate — create Razorpay order (order is created only after payment) */
+router.post('/initiate', protect, asyncHandler(async (req, res) => {
+  const data = await paymentService.initiateRazorpayOrder(req.user.id, req.body);
+  sendCreated(res, data, 'Payment initiated');
+}));
+
+/** POST /payments/verify — verify payment, then create the order */
 router.post('/verify', protect, asyncHandler(async (req, res) => {
-  const { razorpayOrderId, razorpayPaymentId, signature, orderId } = req.body;
-  const result = await paymentService.verifyPayment(razorpayOrderId, razorpayPaymentId, signature, orderId, req.user.id);
+  const { razorpayOrderId, razorpayPaymentId, signature } = req.body;
+  const result = await paymentService.verifyPayment(razorpayOrderId, razorpayPaymentId, signature, req.user.id);
   sendSuccess(res, result);
 }));
 

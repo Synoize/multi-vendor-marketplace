@@ -1,32 +1,57 @@
 import axios from 'axios';
 
+const prodOrigin = 'https://api.thedaminiedit.com';
+export const API_ORIGIN = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? prodOrigin : '')).replace(/\/$/, '');
+
+export const mediaUrl = (path) => {
+  if (!path) return '';
+  if (/^(https?:)?\/\//.test(path)) return path;
+  return API_ORIGIN ? `${API_ORIGIN}${path}` : path;
+};
+
+const rewriteUploadPaths = (value) => {
+  if (typeof value === 'string') {
+    return value.startsWith('/uploads/') ? `${API_ORIGIN}${value}` : value;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) value[i] = rewriteUploadPaths(value[i]);
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    for (const key of Object.keys(value)) value[key] = rewriteUploadPaths(value[key]);
+    return value;
+  }
+  return value;
+};
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_ORIGIN ? `${API_ORIGIN}/api/v1` : '/api/v1',
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
-// Request interceptor — attach token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('adminToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+api.interceptors.response.use((response) => {
+  if (API_ORIGIN) rewriteUploadPaths(response.data);
+  return response;
+});
+
+// Only force a JSON content-type for non-FormData payloads. A hardcoded
+// `application/json` default makes axios serialize FormData into a JSON
+// string (formDataToJSON), silently dropping uploaded image files.
+api.interceptors.request.use((config) => {
+  const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData;
+  if (isFormData) {
+    config.headers.delete('Content-Type');
+  } else if (!config.headers.get('Content-Type')) {
+    config.headers.set('Content-Type', 'application/json');
+  }
+  return config;
+});
 
 // Response interceptor — handle 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('adminToken');
-      // Avoid redirect loop on login page
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }

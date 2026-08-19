@@ -25,6 +25,7 @@ import { format, parseISO } from 'date-fns'
 import api from '../lib/axios'
 import MetricCard from '../components/ui/MetricCard'
 import StatusBadge from '../components/ui/StatusBadge'
+import DataTable from '../components/ui/DataTable'
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -121,6 +122,88 @@ function Dashboard() {
       iconBg: 'bg-teal-500/10',
       change: summary.roasChange,
       changeLabel: 'vs last period',
+    },
+  ]
+
+  const campaignColumns = [
+    {
+      key: 'name',
+      label: 'Campaign',
+      sortable: true,
+      render: (_, row) => (
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-white truncate max-w-[180px]">
+            {row.name}
+          </span>
+          <span className="text-xs text-gray-500 capitalize">{row.type}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (_, row) => <StatusBadge status={row.status} />,
+    },
+    {
+      key: 'impressions',
+      label: 'Impressions',
+      sortable: true,
+      render: (_, row) => (
+        <span className="text-sm text-gray-300">
+          {(row.impressions || 0).toLocaleString('en-IN')}
+        </span>
+      ),
+    },
+    {
+      key: 'clicks',
+      label: 'Clicks',
+      sortable: true,
+      render: (_, row) => (
+        <span className="text-sm text-gray-300">
+          {(row.clicks || 0).toLocaleString('en-IN')}
+        </span>
+      ),
+    },
+    {
+      key: 'ctr',
+      label: 'CTR',
+      render: (_, row) => {
+        const ctrVal = row.impressions > 0
+          ? ((row.clicks / row.impressions) * 100).toFixed(2)
+          : '0.00'
+        return <span className="text-sm text-gray-300">{ctrVal}%</span>
+      },
+    },
+    {
+      key: 'totalSpend',
+      label: 'Spend',
+      sortable: true,
+      render: (_, row) => (
+        <span className="text-sm text-gray-300">
+          ₹{(row.totalSpend || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+    {
+      key: 'dailyBudget',
+      label: 'Daily Budget',
+      sortable: true,
+      render: (_, row) => (
+        <span className="text-sm text-gray-300">
+          ₹{(row.dailyBudget || 0).toLocaleString('en-IN')}
+        </span>
+      ),
+    },
+    {
+      key: 'period',
+      label: 'Period',
+      render: (_, row) => (
+        <span className="text-xs text-gray-500 whitespace-nowrap">
+          {row.startDate ? format(parseISO(row.startDate), 'dd MMM') : '—'}
+          {' → '}
+          {row.endDate ? format(parseISO(row.endDate), 'dd MMM yy') : 'Ongoing'}
+        </span>
+      ),
     },
   ]
 
@@ -278,61 +361,15 @@ function Dashboard() {
                 </button>
               </div>
             ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/5">
-                    {['Campaign', 'Status', 'Impressions', 'Clicks', 'CTR', 'Spend', 'Daily Budget', 'Period'].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.slice(0, 8).map((campaign) => {
-                    const campaignCTR = campaign.impressions > 0
-                      ? ((campaign.clicks / campaign.impressions) * 100).toFixed(2)
-                      : '0.00'
-                    return (
-                      <tr
-                        key={campaign._id}
-                        className="border-b border-white/5 hover:bg-white/3 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/campaigns/${campaign._id}`)}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-white truncate max-w-[180px]">
-                              {campaign.name}
-                            </span>
-                            <span className="text-xs text-gray-500 capitalize">{campaign.type}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={campaign.status} />
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">
-                          {(campaign.impressions || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">
-                          {(campaign.clicks || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">{campaignCTR}%</td>
-                        <td className="px-4 py-3 text-sm text-gray-300">
-                          ₹{(campaign.totalSpend || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">
-                          ₹{(campaign.dailyBudget || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                          {campaign.startDate ? format(parseISO(campaign.startDate), 'dd MMM') : '—'}
-                          {' → '}
-                          {campaign.endDate ? format(parseISO(campaign.endDate), 'dd MMM yy') : 'Ongoing'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              <DataTable
+                columns={campaignColumns}
+                data={campaigns.slice(0, 8)}
+                loading={campaignsLoading}
+                emptyMessage="No campaigns yet"
+                enablePagination={false}
+                enableSearch={false}
+                onRowClick={(row) => navigate('/campaigns/' + row._id)}
+              />
             )}
           </div>
         </div>

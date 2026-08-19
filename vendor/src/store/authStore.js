@@ -11,40 +11,54 @@ const useAuthStore = create(
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
 
+      requestOtp: async (email) => {
+        await api.post('/auth/vendor/request-otp', { email })
+      },
+
+      verifyOtp: async (email, otp) => {
+        const { data } = await api.post('/auth/vendor/verify-otp', { email, otp })
+        const payload = data?.data || data
+        return {
+          user: payload?.user || payload,
+          token: payload?.accessToken || payload?.token || data?.token,
+        }
+      },
+
       login: (user, token) => {
-        if (token) localStorage.setItem('vendor_token', token)
         set({ user, isAuthenticated: true })
       },
 
-      logout: () => {
-        localStorage.removeItem('vendor_token')
-        localStorage.removeItem('vendor_user')
+      logout: async () => {
+        try {
+          await api.post('/auth/logout')
+        } catch { /* ignore */ }
         set({ user: null, isAuthenticated: false })
+        localStorage.removeItem('vendor-auth-storage')
+        localStorage.removeItem('damini-vendor-auth')
         window.location.href = '/login'
       },
 
       checkAuth: async () => {
-        const token = localStorage.getItem('vendor_token')
-        if (!token) {
-          set({ user: null, isAuthenticated: false, isLoading: false })
-          return false
-        }
-
         set({ isLoading: true })
         try {
           const { data } = await api.get('/auth/me')
           const user = data?.user || data?.data || data
           // Ensure this is a vendor account
-          if (user && (user.role === 'vendor' || user.role === 'admin')) {
+          if (user && user.role === 'vendor') {
             set({ user, isAuthenticated: true, isLoading: false })
             return true
           } else {
-            get().logout()
+            // Wrong role on this portal — clear local state only,
+            // do NOT call server logout (that would destroy the other app's session).
+            set({ user: null, isAuthenticated: false, isLoading: false })
             return false
           }
-        } catch {
-          localStorage.removeItem('vendor_token')
-          set({ user: null, isAuthenticated: false, isLoading: false })
+        } catch (err) {
+          // Only treat 401 as logged-out. A 429 (rate limit) or a network
+          // error must NOT log the user out.
+          if (err?.response?.status === 401) {
+            set({ user: null, isAuthenticated: false, isLoading: false })
+          }
           return false
         }
       },

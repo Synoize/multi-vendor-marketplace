@@ -62,7 +62,7 @@ async function getWishlist(userId, queryParams = {}) {
        WHERE w.user_id = ?
        ORDER BY w.created_at DESC
        LIMIT ? OFFSET ?`,
-      [userId, userId, limit, offset]
+      [userId, limit, offset]
     );
 
     const parsedItems = items.map((item) => ({
@@ -148,14 +148,15 @@ async function removeFromWishlist(userId, productId) {
 // moveToCart
 // ─────────────────────────────────────────────────────────────────────────────
 /**
- * Move a wishlist item to the cart (quantity = 1, no variant).
+ * Move a wishlist item to the cart (quantity = 1, optional variant).
  * The wishlist item is removed after adding to cart.
  *
- * @param {string} wishlistItemId - UUID of the wishlist row
  * @param {string} userId
+ * @param {string} productId
+ * @param {string|null} variantId
  * @returns {Promise<boolean>}
  */
-async function moveToCart(wishlistItemId, userId) {
+async function moveToCart(userId, productId, variantId = null) {
   try {
     return await transaction(async (conn) => {
       // 1. Get wishlist item
@@ -163,8 +164,8 @@ async function moveToCart(wishlistItemId, userId) {
         `SELECT w.id, w.product_id, p.stock, p.status, p.price
          FROM wishlists w
          JOIN products p ON p.id = w.product_id
-         WHERE w.id = ? AND w.user_id = ? AND p.deleted_at IS NULL`,
-        [wishlistItemId, userId]
+         WHERE w.user_id = ? AND w.product_id = ? AND p.deleted_at IS NULL`,
+        [userId, productId]
       );
       if (!wlRows.length) {
         throw Object.assign(new Error('Wishlist item not found'), { statusCode: 404 });
@@ -178,12 +179,12 @@ async function moveToCart(wishlistItemId, userId) {
         throw Object.assign(new Error('Product is out of stock'), { statusCode: 400 });
       }
 
-      // 2. Upsert into cart (quantity 1, no variant)
+      // 2. Upsert into cart
       await conn.execute(
         `INSERT INTO carts (user_id, product_id, variant_id, quantity, saved_for_later)
-         VALUES (?, ?, NULL, 1, 0)
+         VALUES (?, ?, ?, 1, 0)
          ON DUPLICATE KEY UPDATE quantity = quantity + 1`,
-        [userId, wlItem.product_id]
+        [userId, wlItem.product_id, variantId]
       );
 
       // 3. Remove from wishlist
