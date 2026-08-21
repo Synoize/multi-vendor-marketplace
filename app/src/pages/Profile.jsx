@@ -1,17 +1,14 @@
 import { Helmet } from "react-helmet-async";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { useProfileStore } from "@/store/profileStore";
 import { toast } from "sonner";
 import {
   User,
   MapPin,
-  Package,
-  Wallet,
-  Bell,
   Mail,
-  ChevronRight,
   Plus,
   Edit,
   Trash2,
@@ -19,7 +16,16 @@ import {
   X,
   Star,
   Check,
+  Coins,
+  Send,
+  Info,
+  Copy,
+  Users,
+  ShoppingCart,
+  Gift,
+  Share2,
 } from "lucide-react";
+import api from "@/lib/axios";
 
 const TABS = [
   {
@@ -33,9 +39,9 @@ const TABS = [
     icon: <MapPin strokeWidth={1.5} className="h-4 w-4" />,
   },
   {
-    id: "wallet",
-    label: "Wallet",
-    icon: <Wallet strokeWidth={1.5} className="h-4 w-4" />,
+    id: "coins",
+    label: "My Coins",
+    icon: <Coins strokeWidth={1.5} className="h-4 w-4" />,
   },
 ];
 
@@ -62,6 +68,7 @@ export default function Profile() {
     name: user?.name || "",
     phone: user?.phone || "",
   });
+  const navigate = useNavigate();
   const [addrModalOpen, setAddrModalOpen] = useState(false);
   const [editingAddr, setEditingAddr] = useState(null);
   const [addrForm, setAddrForm] = useState(EMPTY_FORM);
@@ -73,10 +80,41 @@ export default function Profile() {
     queryFn: () => useProfileStore.getState().fetchAddresses(),
   });
 
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet"],
-    queryFn: () => useProfileStore.getState().fetchWallet(),
+  const { data: coinsData } = useQuery({
+    queryKey: ["coins"],
+    queryFn: () => useProfileStore.getState().fetchCoins(),
   });
+
+  const { data: referralData } = useQuery({
+    queryKey: ["referral"],
+    queryFn: async () => {
+      const { data } = await api.get("/users/me/referral");
+      return data.data;
+    },
+  });
+
+  const [copied, setCopied] = useState(false);
+
+  const copyReferralCode = () => {
+    if (!referralData?.referralCode) return;
+    navigator.clipboard.writeText(referralData.referralCode);
+    setCopied(true);
+    toast.success("Referral code copied!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareReferral = async () => {
+    const link = referralData?.referralLink;
+    const text = `Join The Damini Edit using my referral code ${referralData?.referralCode} and get 50 bonus coins on your first purchase! 🛍️`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "The Damini Edit", text, url: link });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(`${text}\n${link}`);
+      toast.success("Referral link copied to clipboard!");
+    }
+  };
 
   const saveProfile = async () => {
     try {
@@ -213,7 +251,7 @@ export default function Profile() {
           <div className="flex-1">
             {/* Profile Tab */}
             {activeTab === "profile" && (
-              <div className="bg-white sm:rounded-lg sm:shadow-sm p-2 sm:p-5">
+              <div className="bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-secondary-200 p-2 sm:p-5">
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="font-semibold text-secondary-950 sm:text-lg">
                     Personal Information
@@ -294,7 +332,7 @@ export default function Profile() {
 
             {/* Addresses Tab */}
             {activeTab === "addresses" && (
-              <div className="bg-white sm:rounded-lg sm:shadow-sm p-2 sm:p-5">
+              <div className="bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-secondary-200 p-2 sm:p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-secondary-950 sm:text-lg">
                     Saved Addresses
@@ -387,60 +425,173 @@ export default function Profile() {
               </div>
             )}
 
-            {/* Wallet Tab */}
-            {activeTab === "wallet" && (
-              <div className="bg-white sm:rounded-lg sm:shadow-sm p-2 sm:p-5">
-                <h2 className="font-semibold text-secondary-950 sm:text-lg mb-4">
-                  The Damini Edit Wallet
-                </h2>
-                <div className="bg-gradient-to-br from-primary-500 to-accent rounded-xl p-4 sm:p-6 text-white mb-5">
-                  <p className="text-white text-sm mb-1">Available Balance</p>
-                  <p className="text-3xl sm:text-4xl font-bold">
-                    ₹{parseFloat(wallet?.balance || 0).toLocaleString("en-IN")}
+            {/* Coins Tab */}
+            {activeTab === "coins" && (
+              <div className="bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-secondary-200 p-2 sm:p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold text-secondary-950 sm:text-lg">
+                    Damini Coins
+                  </h2>
+                </div>
+                <div className="bg-gradient-to-br from-primary-500  to-accent rounded-xl p-4 sm:p-6 text-white mb-4">
+                  <p className="text-white font-medium text-sm mb-1">
+                    Available Coins
                   </p>
-                  <p className="text-secondary-200 text-[10px] sm:text-xs mt-2">
-                    Use your wallet balance at checkout for instant discounts
+                  <p className="text-3xl sm:text-4xl font-semibold">
+                    {coinsData?.balance ?? 0}
+                  </p>
+                  <p className="text-secondary text-xs mt-2">
+                    100 coins = ₹100 off on ₹1,000+ orders
                   </p>
                 </div>
                 <div>
                   <h3 className="font-semibold text-secondary-950 mb-3 text-sm">
-                    Recent Transactions
+                    Recent Coin Activity
                   </h3>
-                  {wallet?.transactions?.length > 0 ? (
-                    wallet.transactions.map((t) => (
+                  {coinsData?.transactions?.length > 0 ? (
+                    coinsData.transactions.slice(0, 5).map((tx) => (
                       <div
-                        key={t.id}
+                        key={tx.id}
                         className="flex justify-between items-center py-2.5 border-b last:border-0"
                       >
                         <div>
                           <p className="text-sm font-medium text-secondary-950">
-                            {t.description}
+                            {tx.description || tx.reason}
                           </p>
                           <p className="text-xs text-secondary-800">
-                            {new Date(t.created_at).toLocaleDateString("en-IN")}
+                            {new Date(tx.created_at).toLocaleDateString(
+                              "en-IN",
+                            )}
                           </p>
                         </div>
                         <span
-                          className={`font-bold text-sm ${t.type === "credit" ? "text-green-600" : "text-red-500"}`}
+                          className={`font-bold text-sm ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}
                         >
-                          {t.type === "credit" ? "+" : "-"}₹
-                          {parseFloat(t.amount).toLocaleString("en-IN")}
+                          {tx.type === "credit" ? "+" : "-"}
+                          {tx.amount} coins
                         </span>
                       </div>
                     ))
                   ) : (
                     <p className="text-secondary-700 text-sm text-center py-6">
-                      No transactions yet
+                      No coin transactions yet
                     </p>
                   )}
+                </div>
+
+                {/* Refer & Earn Section */}
+                <div className="mt-5 bg-secondary-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-secondary-950 mb-1 flex items-center gap-2 text-sm">
+                    <Users className="w-4 h-4 text-primary" /> Refer & Earn
+                  </h3>
+                  <p className="text-xs text-secondary-800 mb-3">
+                    Share your referral link and earn coins when your friends
+                    shop!
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {[
+                      {
+                        label: "Referrals",
+                        value: referralData?.stats?.total_referrals || 0,
+                      },
+                      {
+                        label: "Coins Earned",
+                        value: referralData?.stats?.total_coins_earned || 0,
+                      },
+                      {
+                        label: "Successful",
+                        value: referralData?.stats?.credited_referrals || 0,
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="bg-white rounded-lg p-2 text-center"
+                      >
+                        <p className="text-lg font-bold text-primary">
+                          {stat.value}
+                        </p>
+                        <p className="text-[10px] text-secondary-800">
+                          {stat.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-white rounded-lg border border-secondary-200 p-3">
+                    <p className="text-xs text-secondary-800 mb-1.5">
+                      Your Referral Code
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-secondary-50 rounded px-3 py-2 font-mono text-xs font-bold text-secondary-950 tracking-wider">
+                        {referralData?.referralCode || "..."}
+                      </div>
+                      <button
+                        onClick={copyReferralCode}
+                        className="bg-primary text-white px-3 py-2 rounded text-xs font-medium hover:bg-primary-600 transition-colors"
+                      >
+                        {copied ? (
+                          <Check className="w-3.5 h-3.5" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={shareReferral}
+                        className="bg-secondary-400 text-secondary-950 px-3 py-2 rounded text-xs font-medium hover:bg-secondary-300 transition-colors"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* How it Works */}
+                <div className="bg-white rounded-xl shadow-sm border border-secondary-200 p-5 mb-6">
+                  <h3 className="font-semibold text-secondary-950 mb-4 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-primary" /> How Damini Coins
+                    Work
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                      {
+                        icon: Send,
+                        title: "Share & Refer",
+                        desc: "Share your referral link with friends on WhatsApp, Instagram, etc.",
+                      },
+                      {
+                        icon: Gift,
+                        title: "Earn Coins",
+                        desc: "Get 50 coins on friend's first purchase. Earn 100 coins on ₹5,000+ orders.",
+                      },
+                      {
+                        icon: ShoppingCart,
+                        title: "Redeem & Save",
+                        desc: "Use 100 coins to get ₹100 off on orders of ₹1,000 or more.",
+                      },
+                    ].map((item) => (
+                      <div key={item.title} className="flex gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                          <item.icon
+                            strokeWidth={1.5}
+                            className="w-4 h-4 text-primary"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-secondary-950">
+                            {item.title}
+                          </p>
+                          <p className="text-xs text-secondary-800 mt-0.5">
+                            {item.desc}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Address Form Modal */}
       {addrModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div

@@ -1,11 +1,14 @@
-import { useMemo, useState, useCallback } from 'react';
-import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
+import { useMemo, useState, useCallback } from "react";
+import {
+  MaterialReactTable,
+  useMaterialReactTable,
+} from "material-react-table";
 
 export default function DataTable({
   columns: rawColumns = [],
   data = [],
   loading = false,
-  emptyMessage = 'No data found',
+  emptyMessage = "No data found",
   onRowClick,
   total,
   page,
@@ -28,7 +31,7 @@ export default function DataTable({
     return rawColumns.map((col) => ({
       accessorKey: col.key,
       header: col.label,
-      size: col.key === 'id' ? 80 : undefined,
+      size: col.key === "id" ? 80 : undefined,
       enableSorting: col.sortable !== false,
       Cell: col.render
         ? ({ cell, row }) => col.render(cell.getValue(), row.original)
@@ -46,9 +49,7 @@ export default function DataTable({
   const handleSortingChange = useCallback(
     (updater) => {
       const newSorting =
-        typeof updater === 'function'
-          ? updater(sorting)
-          : updater;
+        typeof updater === "function" ? updater(sorting) : updater;
       if (externalOnSortingChange) {
         externalOnSortingChange(newSorting);
       } else {
@@ -58,19 +59,24 @@ export default function DataTable({
     [sorting, externalOnSortingChange],
   );
 
-  const pageSize = isServerPaginated ? (externalPageSize !== 10 ? externalPageSize : internalPageSize) : internalPageSize;
+  const pageSize = isServerPaginated
+    ? externalPageSize !== 10
+      ? externalPageSize
+      : internalPageSize
+    : internalPageSize;
 
-  const paginationState = useMemo(() => ({
-    pageIndex: isServerPaginated ? page - 1 : internalPageIndex,
-    pageSize,
-  }), [isServerPaginated, page, internalPageIndex, pageSize]);
+  const paginationState = useMemo(
+    () => ({
+      pageIndex: isServerPaginated ? page - 1 : internalPageIndex,
+      pageSize,
+    }),
+    [isServerPaginated, page, internalPageIndex, pageSize],
+  );
 
   const handlePaginationChange = useCallback(
     (updater) => {
       const newPagination =
-        typeof updater === 'function'
-          ? updater(paginationState)
-          : updater;
+        typeof updater === "function" ? updater(paginationState) : updater;
       const newPageIndex = newPagination.pageIndex;
       const newPageSize = newPagination.pageSize;
       setInternalPageSize(newPageSize);
@@ -101,18 +107,22 @@ export default function DataTable({
     enableColumnFilters,
     enableSorting: true,
     enableHiding: enableColumnVisibility,
-    enableTopToolbar: enableSearch || enableExport || enableColumnVisibility || !!renderTopToolbarCustomActions,
+    enableTopToolbar:
+      enableSearch ||
+      enableExport ||
+      enableColumnVisibility ||
+      !!renderTopToolbarCustomActions,
     enableBottomToolbar: enablePagination,
     enableRowSelection,
 
     initialState: {
-      density: 'compact',
+      density: "compact",
       showColumnFilters: enableColumnFilters,
     },
 
     mrtTheme: {
-      baseColor: '#f9fafb',
-      bgcolor: 'transparent',
+      baseColor: "#f9fafb",
+      bgcolor: "transparent",
     },
 
     renderTopToolbarCustomActions: ({ table }) => {
@@ -122,57 +132,59 @@ export default function DataTable({
       return undefined;
     },
 
-    muiTableBodyRowProps: customRowProps || (onRowClick
-      ? ({ row }) => ({
-          onClick: () => onRowClick(row.original),
-          sx: { cursor: 'pointer' },
-        })
-      : undefined),
+    muiTableBodyRowProps:
+      customRowProps ||
+      (onRowClick
+        ? ({ row }) => ({
+            onClick: () => onRowClick(row.original),
+            sx: { cursor: "pointer" },
+          })
+        : undefined),
 
     muiTablePaperProps: {
       elevation: 0,
       sx: {
-        border: 'none',
-        background: 'transparent',
+        border: "none",
+        background: "transparent",
       },
     },
 
     muiTableContainerProps: {
-      sx: { maxHeight: 'none' },
+      sx: { maxHeight: "none" },
     },
 
     muiTableProps: {
       sx: {
-        borderCollapse: 'separate',
+        borderCollapse: "separate",
         borderSpacing: 0,
       },
     },
 
     muiTableHeadCellProps: {
       sx: {
-        fontSize: '11px',
+        fontSize: "11px",
         fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        color: '#6b7280',
-        borderBottom: '1px solid #f3f4f6',
-        background: '#fafafa',
-        padding: '12px 16px',
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        color: "#6b7280",
+        borderBottom: "1px solid #f3f4f6",
+        background: "#fafafa",
+        padding: "12px 16px",
       },
     },
 
     muiTableBodyCellProps: {
       sx: {
-        borderBottom: '1px solid #f3f4f6',
-        padding: '12px 16px',
-        fontSize: '14px',
+        borderBottom: "1px solid #f3f4f6",
+        padding: "12px 16px",
+        fontSize: "14px",
       },
     },
 
     muiTableBodyProps: {
       sx: {
-        '& tr:hover': {
-          backgroundColor: '#f9fafb !important',
+        "& tr:hover": {
+          backgroundColor: "#f9fafb !important",
         },
       },
     },
@@ -182,7 +194,7 @@ export default function DataTable({
   });
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto scrollbar-thin">
       <MaterialReactTable table={table} />
     </div>
   );

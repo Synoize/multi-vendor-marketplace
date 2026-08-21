@@ -19,6 +19,7 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().optional(),
+  referralCode: z.string().optional().nullable(),
 });
 
 const otpSchema = z.object({

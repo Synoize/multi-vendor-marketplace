@@ -94,13 +94,12 @@ export default function VendorDetail() {
     queryClient.invalidateQueries(["admin-vendors"]);
   };
 
-  const {
-    data: pendingData,
-    isLoading: pendingLoading,
-  } = useQuery({
+  const { data: pendingData, isLoading: pendingLoading } = useQuery({
     queryKey: ["admin-vendor-pending-updates", id],
     queryFn: async () => {
-      const res = await api.get(`/admin/vendors/pending-updates?vendor_id=${id}&limit=50`);
+      const res = await api.get(
+        `/admin/vendors/pending-updates?vendor_id=${id}&limit=50`,
+      );
       return res.data?.data?.updates || res.data?.updates || [];
     },
     enabled: !!id,
@@ -332,7 +331,11 @@ export default function VendorDetail() {
                 />
                 <InfoRow label="GST Number" value={vendor.gst_number} mono />
                 <InfoRow label="PAN Number" value={vendor.pan_number} mono />
-                <InfoRow label="FSSAI Number" value={vendor.fssai_number} mono />
+                <InfoRow
+                  label="FSSAI Number"
+                  value={vendor.fssai_number}
+                  mono
+                />
                 <InfoRow
                   label="Commission Rate"
                   value={
@@ -413,14 +416,20 @@ export default function VendorDetail() {
                   label="Account Status"
                   value={
                     vendor.user_active ? (
-                      <span className="text-emerald-600 font-medium">Active</span>
+                      <span className="text-emerald-600 font-medium">
+                        Active
+                      </span>
                     ) : (
                       <span className="text-red-600 font-medium">Inactive</span>
                     )
                   }
                 />
                 <InfoRow label="Pickup Contact" value={vendor.pickup_name} />
-                <InfoRow label="Pickup Phone" value={vendor.pickup_phone} mono />
+                <InfoRow
+                  label="Pickup Phone"
+                  value={vendor.pickup_phone}
+                  mono
+                />
                 <InfoRow
                   label="Pickup Address"
                   value={`${vendor.pickup_line1 || ""}${vendor.pickup_line2 ? `, ${vendor.pickup_line2}` : ""}`.trim()}
@@ -432,11 +441,14 @@ export default function VendorDetail() {
                   label="Joined"
                   value={
                     vendor.created_at
-                      ? new Date(vendor.created_at).toLocaleDateString("en-IN", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
+                      ? new Date(vendor.created_at).toLocaleDateString(
+                          "en-IN",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          },
+                        )
                       : null
                   }
                 />
@@ -470,7 +482,9 @@ export default function VendorDetail() {
                 {docs.length === 0 ? (
                   <div className="text-center py-8">
                     <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">No documents uploaded</p>
+                    <p className="text-sm text-gray-400">
+                      No documents uploaded
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
@@ -578,7 +592,8 @@ export default function VendorDetail() {
                       {entries.length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 my-3">
                           {entries.map(([key, value]) => {
-                            const isDoc = typeof value === "string" && value.includes("/");
+                            const isDoc =
+                              typeof value === "string" && value.includes("/");
                             return (
                               <div
                                 key={key}
@@ -599,7 +614,9 @@ export default function VendorDetail() {
                                       {value.split("/").pop()}
                                     </a>
                                   ) : (
-                                    value || <span className="text-gray-300">—</span>
+                                    value || (
+                                      <span className="text-gray-300">—</span>
+                                    )
                                   )}
                                 </span>
                               </div>
@@ -609,7 +626,7 @@ export default function VendorDetail() {
                       )}
 
                       {upd.admin_note && (
-                        <p className="text-xs text-red-500 mb-2">
+                        <p className="text-xs text-secondary-800 mb-2">
                           Admin note: {upd.admin_note}
                         </p>
                       )}
@@ -666,7 +683,7 @@ export default function VendorDetail() {
           onChange={(e) => setRejectReason(e.target.value)}
           placeholder="Reason for rejection..."
           rows={4}
-          className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
+          className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-secondary-600 transition-all"
         />
       </ConfirmDialog>
 
@@ -692,7 +709,7 @@ export default function VendorDetail() {
           onChange={(e) => setSuspendReason(e.target.value)}
           placeholder="Reason for suspension..."
           rows={4}
-          className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-all"
+          className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-amber-400 transition-all"
         />
       </ConfirmDialog>
 
@@ -720,7 +737,7 @@ export default function VendorDetail() {
           onChange={(e) => setUpdateRejectNote(e.target.value)}
           placeholder="Reason for rejection..."
           rows={4}
-          className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
+          className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-secondary-600 transition-all"
         />
       </ConfirmDialog>
     </>

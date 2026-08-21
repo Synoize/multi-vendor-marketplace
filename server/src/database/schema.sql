@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS categories (
   description TEXT            NULL,
   image       VARCHAR(500)    NULL,
   icon        VARCHAR(100)    NULL,
+  banner      VARCHAR(500)    NULL,
   sort_order  INT             NOT NULL DEFAULT 0,
   is_active   TINYINT(1)      NOT NULL DEFAULT 1,
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -361,6 +362,8 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_charges  DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
   total             DECIMAL(12,2)   NOT NULL,
   payment_method    ENUM('cod','razorpay','wallet') NOT NULL DEFAULT 'cod',
+  coins_redeemed    INT UNSIGNED    NOT NULL DEFAULT 0,
+  coins_discount    DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
   payment_status    ENUM('pending','paid','failed','refunded','partially_refunded') NOT NULL DEFAULT 'pending',
   status            ENUM('placed','confirmed','processing','shipped','out_for_delivery','delivered','cancelled','return_requested','returned') NOT NULL DEFAULT 'placed',
   notes             TEXT            NULL,
@@ -726,6 +729,9 @@ CREATE TABLE IF NOT EXISTS referrals (
   referee_id      CHAR(36)        NOT NULL,
   reward_amount   DECIMAL(10,2)   NOT NULL DEFAULT 100.00,
   status          ENUM('pending','credited','expired') NOT NULL DEFAULT 'pending',
+  referrer_coins_credited  TINYINT(1) NOT NULL DEFAULT 0,
+  referee_coins_credited   TINYINT(1) NOT NULL DEFAULT 0,
+  first_order_id           CHAR(36)   NULL,
   credited_at     DATETIME        NULL,
   created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -894,38 +900,6 @@ CREATE TABLE IF NOT EXISTS festival_sale_vendors (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
--- TABLE: wallet (user wallet balance)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS wallets (
-  id          CHAR(36)        NOT NULL DEFAULT (UUID()),
-  user_id     CHAR(36)        NOT NULL,
-  balance     DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
-  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_wallets_user (user_id),
-  CONSTRAINT fk_wallets_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ─────────────────────────────────────────────────────────────
--- TABLE: wallet_transactions
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS wallet_transactions (
-  id              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-  user_id         CHAR(36)        NOT NULL,
-  type            ENUM('credit','debit') NOT NULL,
-  amount          DECIMAL(12,2)   NOT NULL,
-  reason          ENUM('referral','refund','order_payment','admin_credit','cashback') NOT NULL,
-  reference_id    VARCHAR(100)    NULL,
-  description     TEXT            NULL,
-  balance_after   DECIMAL(12,2)   NOT NULL,
-  created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  INDEX idx_wt_user (user_id),
-  CONSTRAINT fk_wt_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ─────────────────────────────────────────────────────────────
 -- TABLE: offers (promotions / deals)
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS offers (
@@ -973,6 +947,38 @@ CREATE TABLE IF NOT EXISTS offer_usages (
   CONSTRAINT fk_ou_offer FOREIGN KEY (offer_id) REFERENCES offers (id),
   CONSTRAINT fk_ou_user FOREIGN KEY (user_id) REFERENCES users (id),
   CONSTRAINT fk_ou_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: user_coins (Damini Coins balance per user)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_coins (
+  id          CHAR(36)        NOT NULL DEFAULT (UUID()),
+  user_id     CHAR(36)        NOT NULL,
+  balance     INT UNSIGNED    NOT NULL DEFAULT 0,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_coins_user (user_id),
+  CONSTRAINT fk_coins_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: coin_transactions (audit trail for coin credits/debits)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS coin_transactions (
+  id              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  user_id         CHAR(36)        NOT NULL,
+  type            ENUM('credit','debit') NOT NULL,
+  amount          INT UNSIGNED    NOT NULL,
+  reason          ENUM('referral_reward','first_purchase','redemption','admin_adjustment') NOT NULL,
+  reference_id    VARCHAR(100)    NULL,
+  description     TEXT            NULL,
+  balance_after   INT UNSIGNED    NOT NULL,
+  created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ct_user (user_id),
+  CONSTRAINT fk_ct_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -526,8 +526,7 @@ export default function SellerRegister() {
                   </div>
 
                   {!isAuthenticated && (
-                    <div className="bg-secondary border rounded-lg p-3 text-xs sm:text-sm text-secondary-900 flex items-start gap-2">
-                      <Zap className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-secondary-900 flex items-start gap-2">
                       <span>
                         Please{" "}
                         <Link

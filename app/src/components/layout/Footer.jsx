@@ -94,7 +94,7 @@ export default function Footer() {
   const toggle = (key) => setOpen(open === key ? null : key);
 
   return (
-    <footer className="bg-secondary-900 text-secondary">
+    <footer className="bg-black/95 text-secondary">
       {/* Main Footer */}
       <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 py-8 lg:py-10">
         {/* MOBILE: collapsed accordion (like Amazon) */}

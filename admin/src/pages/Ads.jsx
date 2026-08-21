@@ -227,7 +227,7 @@ export default function Ads() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
               activeTab === tab.id
-                ? "bg-red-500 text-white shadow-sm"
+                ? "bg-primary text-white shadow-sm"
                 : "bg-gray-100 text-gray-500 hover:bg-gray-200"
             }`}
           >
@@ -285,7 +285,7 @@ export default function Ads() {
             placeholder="Describe why this campaign is being rejected (e.g. invalid dates, duplicate products)..."
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            className="w-full border border-gray-200 bg-gray-50 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 resize-none"
+            className="w-full border border-gray-200 bg-gray-50 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-secondary-600 resize-none"
           />
         </div>
       </ConfirmDialog>

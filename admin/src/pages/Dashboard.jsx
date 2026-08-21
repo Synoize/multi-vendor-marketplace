@@ -37,7 +37,7 @@ ChartJS.register(
   ArcElement,
   Filler,
   ChartTooltip,
-  Legend
+  Legend,
 );
 
 function formatCurrency(val) {
@@ -50,17 +50,80 @@ function formatCurrency(val) {
 }
 
 const kpiConfig = [
-  { key: "total_revenue", label: "Total Revenue", icon: IndianRupee, bg: "bg-blue-50", text: "text-blue-600", format: formatCurrency },
-  { key: "total_orders", label: "Total Orders", icon: ShoppingCart, bg: "bg-orange-50", text: "text-orange-600", format: (v) => (v || 0).toLocaleString() },
-  { key: "total_users", label: "Total Users", icon: Users, bg: "bg-emerald-50", text: "text-emerald-600", format: (v) => (v || 0).toLocaleString() },
-  { key: "total_vendors", label: "Active Vendors", icon: Store, bg: "bg-purple-50", text: "text-purple-600", format: (v) => (v || 0).toLocaleString() },
-  { key: "total_products", label: "Total Products", icon: ShoppingBasket, bg: "bg-cyan-50", text: "text-cyan-600", format: (v) => (v || 0).toLocaleString() },
-  { key: "today_orders", label: "Today's Orders", icon: TrendingUp, bg: "bg-amber-50", text: "text-amber-600", format: (v) => (v || 0).toLocaleString() },
-  { key: "today_revenue", label: "Today's Revenue", icon: IndianRupee, bg: "bg-pink-50", text: "text-pink-600", format: formatCurrency },
-  { key: "avg_order_value", label: "Avg Order Value", icon: ShoppingCart, bg: "bg-rose-50", text: "text-rose-600", format: formatCurrency },
+  {
+    key: "total_revenue",
+    label: "Total Revenue",
+    icon: IndianRupee,
+    bg: "bg-blue-50",
+    text: "text-blue-600",
+    format: formatCurrency,
+  },
+  {
+    key: "total_orders",
+    label: "Total Orders",
+    icon: ShoppingCart,
+    bg: "bg-orange-50",
+    text: "text-orange-600",
+    format: (v) => (v || 0).toLocaleString(),
+  },
+  {
+    key: "total_users",
+    label: "Total Users",
+    icon: Users,
+    bg: "bg-emerald-50",
+    text: "text-emerald-600",
+    format: (v) => (v || 0).toLocaleString(),
+  },
+  {
+    key: "total_vendors",
+    label: "Active Vendors",
+    icon: Store,
+    bg: "bg-purple-50",
+    text: "text-purple-600",
+    format: (v) => (v || 0).toLocaleString(),
+  },
+  {
+    key: "total_products",
+    label: "Total Products",
+    icon: ShoppingBasket,
+    bg: "bg-cyan-50",
+    text: "text-cyan-600",
+    format: (v) => (v || 0).toLocaleString(),
+  },
+  {
+    key: "today_orders",
+    label: "Today's Orders",
+    icon: TrendingUp,
+    bg: "bg-amber-50",
+    text: "text-amber-600",
+    format: (v) => (v || 0).toLocaleString(),
+  },
+  {
+    key: "today_revenue",
+    label: "Today's Revenue",
+    icon: IndianRupee,
+    bg: "bg-pink-50",
+    text: "text-pink-600",
+    format: formatCurrency,
+  },
+  {
+    key: "avg_order_value",
+    label: "Avg Order Value",
+    icon: ShoppingCart,
+    bg: "bg-rose-50",
+    text: "text-rose-600",
+    format: formatCurrency,
+  },
 ];
 
-const PIE_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899"];
+const PIE_COLORS = [
+  "#3b82f6",
+  "#f59e0b",
+  "#10b981",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -136,7 +199,14 @@ export default function Dashboard() {
       legend: {
         display: true,
         position: "bottom",
-        labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, padding: 16, color: "#6b7280", font: { size: 11 } },
+        labels: {
+          boxWidth: 8,
+          boxHeight: 8,
+          usePointStyle: true,
+          padding: 16,
+          color: "#6b7280",
+          font: { size: 11 },
+        },
       },
       tooltip: {
         backgroundColor: "#fff",
@@ -175,10 +245,13 @@ export default function Dashboard() {
   };
 
   const ordersByStatus = [];
-  if (orders.delivered) ordersByStatus.push({ status: "Delivered", count: orders.delivered });
-  if (orders.cancelled) ordersByStatus.push({ status: "Cancelled", count: orders.cancelled });
+  if (orders.delivered)
+    ordersByStatus.push({ status: "Delivered", count: orders.delivered });
+  if (orders.cancelled)
+    ordersByStatus.push({ status: "Cancelled", count: orders.cancelled });
   if (orders.total) {
-    const other = orders.total - (orders.delivered || 0) - (orders.cancelled || 0);
+    const other =
+      orders.total - (orders.delivered || 0) - (orders.cancelled || 0);
     if (other > 0) ordersByStatus.push({ status: "Other", count: other });
   }
 
@@ -201,7 +274,14 @@ export default function Dashboard() {
     plugins: {
       legend: {
         position: "bottom",
-        labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, padding: 12, color: "#6b7280", font: { size: 11 } },
+        labels: {
+          boxWidth: 8,
+          boxHeight: 8,
+          usePointStyle: true,
+          padding: 12,
+          color: "#6b7280",
+          font: { size: 11 },
+        },
       },
       tooltip: {
         backgroundColor: "#fff",
@@ -217,24 +297,37 @@ export default function Dashboard() {
 
   return (
     <>
-      <Helmet><title>Dashboard - The Damini Edit</title></Helmet>
+      <Helmet>
+        <title>Dashboard - The Damini Edit</title>
+      </Helmet>
       <div className="space-y-6 animate-fadeIn">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Welcome back — here's what's happening today</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Dashboard
+            </h1>
+            <p className="text-gray-500 text-sm mt-0.5">
+              Welcome back — here's what's happening today
+            </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm">
             <Clock strokeWidth={1.5} className="w-4 h-4" />
-            {new Date().toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })}
+            {new Date().toLocaleDateString("en-IN", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })}
           </div>
         </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {kpiConfig.map(({ key, label, icon: Icon, bg, text, format }) => (
-            <div key={key} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+            <div
+              key={key}
+              className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow duration-200"
+            >
               {isLoading ? (
                 <div className="space-y-3 animate-pulse">
                   <div className={`w-10 h-10 ${bg} rounded-xl`} />
@@ -243,11 +336,17 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <>
-                  <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
+                  <div
+                    className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}
+                  >
                     <Icon strokeWidth={1.5} className={`w-5 h-5 ${text}`} />
                   </div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1">{format(kpis[key])}</p>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    {label}
+                  </p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {format(kpis[key])}
+                  </p>
                 </>
               )}
             </div>
@@ -262,15 +361,26 @@ export default function Dashboard() {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                <AlertCircle strokeWidth={1.5} className="w-5 h-5 text-amber-500" />
+                <AlertCircle
+                  strokeWidth={1.5}
+                  className="w-5 h-5 text-amber-500"
+                />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Pending Vendors</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  Pending Vendors
+                </p>
                 <p className="text-xs text-gray-400">Awaiting KYC approval</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {isLoading ? <Spinner size="sm" /> : <span className="text-lg font-bold text-amber-500">{kpis.pending_vendors || 0}</span>}
+              {isLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                <span className="text-lg font-bold text-amber-500">
+                  {kpis.pending_vendors || 0}
+                </span>
+              )}
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-amber-500 transition-colors" />
             </div>
           </button>
@@ -280,15 +390,26 @@ export default function Dashboard() {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                <ShoppingBasket strokeWidth={1.5} className="w-5 h-5 text-blue-500" />
+                <ShoppingBasket
+                  strokeWidth={1.5}
+                  className="w-5 h-5 text-blue-500"
+                />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Pending Products</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  Pending Products
+                </p>
                 <p className="text-xs text-gray-400">Awaiting review</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {isLoading ? <Spinner size="sm" /> : <span className="text-lg font-bold text-blue-500">{kpis.pending_products || 0}</span>}
+              {isLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                <span className="text-lg font-bold text-blue-500">
+                  {kpis.pending_products || 0}
+                </span>
+              )}
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
             </div>
           </button>
@@ -299,14 +420,20 @@ export default function Dashboard() {
           <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">Monthly Revenue</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Revenue trend for the last 12 months</p>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Monthly Revenue
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Revenue trend for the last 12 months
+                </p>
               </div>
             </div>
             {isLoading ? (
               <div className="h-60 bg-gray-50 rounded-xl animate-pulse" />
             ) : revenueChart.length === 0 ? (
-              <div className="h-60 flex items-center justify-center text-gray-400 text-sm">No data available</div>
+              <div className="h-60 flex items-center justify-center text-gray-400 text-sm">
+                No data available
+              </div>
             ) : (
               <div className="h-60">
                 <Line data={revenueChartData} options={revenueChartOptions} />
@@ -316,13 +443,19 @@ export default function Dashboard() {
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="mb-5">
-              <h3 className="text-sm font-semibold text-gray-900">Orders by Status</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Current distribution</p>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Orders by Status
+              </h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Current distribution
+              </p>
             </div>
             {isLoading ? (
               <div className="h-60 bg-gray-50 rounded-xl animate-pulse" />
             ) : ordersByStatus.length === 0 ? (
-              <div className="h-60 flex items-center justify-center text-gray-400 text-sm">No data</div>
+              <div className="h-60 flex items-center justify-center text-gray-400 text-sm">
+                No data
+              </div>
             ) : (
               <div className="h-60">
                 <Doughnut data={pieChartData} options={pieChartOptions} />
@@ -335,27 +468,52 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-900">Top Vendors</h3>
-              <button onClick={() => navigate("/vendors")} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Top Vendors
+              </h3>
+              <button
+                onClick={() => navigate("/vendors")}
+                className="text-xs text-secondary-800 hover:text-secondary-900 font-medium flex items-center gap-1"
+              >
                 View all <ChevronRight className="w-3 h-3" />
               </button>
             </div>
             <DataTable
               columns={[
-                { key: "rank", label: "#", sortable: false, render: (_val, row) => <span className="text-xs font-bold text-gray-300">{topVendors.indexOf(row) + 1}</span> },
+                {
+                  key: "rank",
+                  label: "#",
+                  sortable: false,
+                  render: (_val, row) => (
+                    <span className="text-xs font-bold text-gray-300">
+                      {topVendors.indexOf(row) + 1}
+                    </span>
+                  ),
+                },
                 {
                   key: "store_name",
                   label: "Vendor",
                   render: (_val, row) => (
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/vendors/${row._id}`)}>
+                    <div
+                      className="flex items-center gap-3 cursor-pointer"
+                      onClick={() => navigate(`/vendors/${row._id}`)}
+                    >
                       <div className="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0 border border-blue-100">
-                        <span className="text-xs font-bold text-blue-500">{row.store_name?.charAt(0)?.toUpperCase() || "V"}</span>
+                        <span className="text-xs font-bold text-blue-500">
+                          {row.store_name?.charAt(0)?.toUpperCase() || "V"}
+                        </span>
                       </div>
-                      <span className="text-sm font-medium text-gray-900 truncate">{row.store_name}</span>
+                      <span className="text-sm font-medium text-gray-900 truncate">
+                        {row.store_name}
+                      </span>
                     </div>
                   ),
                 },
-                { key: "orders", label: "Orders", render: (val) => (val || 0).toLocaleString() },
+                {
+                  key: "orders",
+                  label: "Orders",
+                  render: (val) => (val || 0).toLocaleString(),
+                },
                 {
                   key: "rating",
                   label: "Rating",
@@ -366,7 +524,15 @@ export default function Dashboard() {
                     </span>
                   ),
                 },
-                { key: "revenue", label: "Revenue", render: (val) => <span className="text-xs font-semibold text-emerald-600">{formatCurrency(val)}</span> },
+                {
+                  key: "revenue",
+                  label: "Revenue",
+                  render: (val) => (
+                    <span className="text-xs font-semibold text-emerald-600">
+                      {formatCurrency(val)}
+                    </span>
+                  ),
+                },
               ]}
               data={topVendors.slice(0, 5)}
               loading={isLoading}
@@ -380,8 +546,13 @@ export default function Dashboard() {
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-900">Recent Orders</h3>
-              <button onClick={() => navigate("/orders")} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Recent Orders
+              </h3>
+              <button
+                onClick={() => navigate("/orders")}
+                className="text-xs text-secondary-800 hover:text-secondary-900 font-medium flex items-center gap-1"
+              >
                 View all <ChevronRight className="w-3 h-3" />
               </button>
             </div>
@@ -391,31 +562,49 @@ export default function Dashboard() {
                   key: "order_number",
                   label: "Order",
                   render: (_val, row) => (
-                    <span className="text-sm font-semibold text-gray-900">#{row.order_number || row._id?.slice(-6)}</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      #{row.order_number || row._id?.slice(-6)}
+                    </span>
                   ),
                 },
                 {
                   key: "status",
                   label: "Status",
-                  render: (val) => <StatusBadgeInline status={val || "pending"} />,
+                  render: (val) => (
+                    <StatusBadgeInline status={val || "pending"} />
+                  ),
                 },
                 {
                   key: "customer_name",
                   label: "Customer",
                   render: (_val, row) => (
                     <span className="text-xs text-gray-400 truncate">
-                      {row.customer_name || row.user?.name || "Customer"} · {row.items_count || 0} items
+                      {row.customer_name || row.user?.name || "Customer"} ·{" "}
+                      {row.items_count || 0} items
                     </span>
                   ),
                 },
-                { key: "total", label: "Total", render: (val) => <span className="text-sm font-semibold text-gray-900">{formatCurrency(val)}</span> },
+                {
+                  key: "total",
+                  label: "Total",
+                  render: (val) => (
+                    <span className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(val)}
+                    </span>
+                  ),
+                },
                 {
                   key: "date",
                   label: "Date",
                   sortable: false,
                   render: (_val, row) => (
                     <span className="text-xs text-gray-400">
-                      {row.created_at ? new Date(row.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : ""}
+                      {row.created_at
+                        ? new Date(row.created_at).toLocaleDateString("en-IN", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : ""}
                     </span>
                   ),
                 },
@@ -447,7 +636,9 @@ function StatusBadgeInline({ status }) {
     pending: "bg-gray-50 text-gray-600 border-gray-100",
   };
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border capitalize ${styles[status] || styles.pending}`}>
+    <span
+      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border capitalize ${styles[status] || styles.pending}`}
+    >
       {status}
     </span>
   );

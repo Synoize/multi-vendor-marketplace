@@ -1,31 +1,31 @@
-import { useState, useRef } from 'react';
-import { Upload, Link, X, ImageIcon, Loader2 } from 'lucide-react';
-import api from '../../lib/axios';
+import { useState, useRef } from "react";
+import { Upload, Link, X, ImageIcon, Loader2 } from "lucide-react";
+import api from "../../lib/axios";
 
 export default function ImageUpload({
-  value = '',
+  value = "",
   onChange,
-  label = 'Image',
+  label = "Image",
   required = false,
-  accept = 'image/jpeg,image/png,image/webp,image/gif',
-  uploadPath = '',
+  accept = "image/jpeg,image/png,image/webp,image/gif",
+  uploadPath = "",
 }) {
-  const [mode, setMode] = useState(value ? 'url' : 'upload');
+  const [mode, setMode] = useState(value ? "url" : "upload");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [urlInput, setUrlInput] = useState(value || '');
+  const [urlInput, setUrlInput] = useState(value || "");
   const fileRef = useRef(null);
 
-  const endpoint = uploadPath ? `/upload/image/${uploadPath}` : '/upload/image';
+  const endpoint = uploadPath ? `/upload/image/${uploadPath}` : "/upload/image";
 
   const handleFile = async (file) => {
     if (!file) return;
     const formData = new FormData();
-    formData.append('images', file);
+    formData.append("images", file);
     setUploading(true);
     try {
       const res = await api.post(endpoint, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { "Content-Type": "multipart/form-data" },
       });
       const url = res.data?.data?.url || res.data?.url;
       if (url) {
@@ -33,7 +33,7 @@ export default function ImageUpload({
         setUrlInput(url);
       }
     } catch (err) {
-      console.error('Upload failed:', err);
+      console.error("Upload failed:", err);
     } finally {
       setUploading(false);
     }
@@ -43,7 +43,7 @@ export default function ImageUpload({
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) handleFile(file);
+    if (file && file.type.startsWith("image/")) handleFile(file);
   };
 
   const handleUrlSubmit = () => {
@@ -52,8 +52,8 @@ export default function ImageUpload({
   };
 
   const clearImage = () => {
-    onChange('');
-    setUrlInput('');
+    onChange("");
+    setUrlInput("");
   };
 
   return (
@@ -65,33 +65,42 @@ export default function ImageUpload({
       <div className="flex gap-1 mb-3">
         <button
           type="button"
-          onClick={() => setMode('upload')}
+          onClick={() => setMode("upload")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            mode === 'upload' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+            mode === "upload"
+              ? "bg-primary text-white shadow-sm"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
           }`}
         >
           <Upload className="w-3.5 h-3.5" /> Upload File
         </button>
         <button
           type="button"
-          onClick={() => setMode('url')}
+          onClick={() => setMode("url")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            mode === 'url' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+            mode === "url"
+              ? "bg-primary text-white shadow-sm"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
           }`}
         >
           <Link className="w-3.5 h-3.5" /> Paste URL
         </button>
       </div>
 
-      {mode === 'upload' ? (
+      {mode === "upload" ? (
         <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           onClick={() => !uploading && fileRef.current?.click()}
           className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-            dragOver ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
-          } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+            dragOver
+              ? "border-primary bg-primary-50"
+              : "border-gray-200 hover:border-gray-300 bg-gray-50"
+          } ${uploading ? "pointer-events-none opacity-60" : ""}`}
         >
           <input
             ref={fileRef}
@@ -102,7 +111,7 @@ export default function ImageUpload({
           />
           {uploading ? (
             <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm text-gray-500">Uploading...</p>
             </div>
           ) : (
@@ -121,8 +130,8 @@ export default function ImageUpload({
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onBlur={handleUrlSubmit}
-            onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-            className="flex-1 border border-gray-200 bg-gray-50 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50 transition-all font-mono placeholder-gray-400"
+            onKeyDown={(e) => e.key === "Enter" && handleUrlSubmit()}
+            className="flex-1 border bg-secondary text-secondary-950 rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary-600 transition-all font-mono"
           />
           {urlInput && (
             <button
@@ -142,7 +151,9 @@ export default function ImageUpload({
             src={value}
             alt="Preview"
             className="h-24 rounded-xl border border-gray-200 object-cover"
-            onError={(e) => { e.target.style.display = 'none'; }}
+            onError={(e) => {
+              e.target.style.display = "none";
+            }}
           />
           <button
             type="button"

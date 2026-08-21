@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   HandCoins,
+  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useProfileStore } from "@/store/profileStore";
@@ -17,6 +18,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useOrderStore } from "@/store/orderStore";
 import { usePaymentStore } from "@/store/paymentStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import api from "@/lib/axios";
 import Spinner from "@/components/ui/Spinner";
 
 // Load Razorpay checkout script once, then reuse it
@@ -55,6 +57,10 @@ export default function Checkout() {
   const [addressDropdownOpen, setAddressDropdownOpen] = useState(false);
   const addressDropdownRef = useRef(null);
   const [orderNote, setOrderNote] = useState("");
+  const [useCoins, setUseCoins] = useState(false);
+  const [coinDiscount, setCoinDiscount] = useState(0);
+  const [coinsToUse, setCoinsToUse] = useState(0);
+  const [maxRedeemable, setMaxRedeemable] = useState(0);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -89,7 +95,7 @@ export default function Checkout() {
   }, []);
 
   const onlineDiscount = paymentMethod === "razorpay" ? onlinePayOff : 0;
-  const totalDiscount = offerDiscount + couponDiscount + onlineDiscount;
+  const totalDiscount = offerDiscount + couponDiscount + onlineDiscount + coinDiscount;
 
   const cart = useCartStore((s) => ({
     items: s.items,
@@ -120,6 +126,34 @@ export default function Checkout() {
       });
   }, []);
 
+  // Fetch max redeemable coins when cart changes
+  const subtotalForCoins = cart.items.reduce(
+    (s, i) => s + i.unit_price * i.quantity,
+    0,
+  );
+
+  useEffect(() => {
+    if (subtotalForCoins > 0) {
+      api.get(`/coins/max-redeemable?subtotal=${subtotalForCoins}`)
+        .then(({ data }) => {
+          setMaxRedeemable(data.data?.maxRedeemable || 0);
+        })
+        .catch(() => {});
+    }
+  }, [subtotalForCoins]);
+
+  // Recalculate coin discount when useCoins changes
+  useEffect(() => {
+    if (useCoins && maxRedeemable > 0) {
+      const discount = maxRedeemable * 1; // 1 coin = ₹1
+      setCoinDiscount(discount);
+      setCoinsToUse(maxRedeemable);
+    } else {
+      setCoinDiscount(0);
+      setCoinsToUse(0);
+    }
+  }, [useCoins, maxRedeemable]);
+
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
       toast.error("Please select a delivery address");
@@ -141,6 +175,7 @@ export default function Checkout() {
       paymentMethod,
       notes: orderNote,
       ...(appliedOfferId && { offerId: appliedOfferId }),
+      ...(coinsToUse > 0 && { coinsToRedeem: coinsToUse }),
     };
 
     const finalizeOrder = async () => {
@@ -524,6 +559,31 @@ export default function Checkout() {
                 })}
               </div>
             </div>
+
+            {/* Use Coins */}
+            {maxRedeemable > 0 && paymentMethod === "cod" && (
+              <div className="bg-white sm:shadow-sm sm:border sm:border-secondary-200 sm:rounded-xl sm:py-5 sm:px-5">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCoins}
+                    onChange={(e) => setUseCoins(e.target.checked)}
+                    className="w-4 h-4 rounded border-secondary-300 text-primary focus:ring-primary"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Coins className="h-4 w-4 text-amber-500" />
+                    <div>
+                      <span className="text-sm font-medium text-secondary-950">
+                        Use {maxRedeemable} Damini Coins
+                      </span>
+                      <span className="text-xs text-green-600 ml-2">
+                        (Get ₹{maxRedeemable} off)
+                      </span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Price Summary */}
@@ -589,6 +649,12 @@ export default function Checkout() {
                       <div className="flex justify-between text-green-600">
                         <span>Online Payment Offer</span>
                         <span>− ₹{onlineDiscount.toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+                    {coinDiscount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Damini Coins ({coinsToUse} coins)</span>
+                        <span>− ₹{coinDiscount.toLocaleString("en-IN")}</span>
                       </div>
                     )}
                     <div className="flex justify-between">

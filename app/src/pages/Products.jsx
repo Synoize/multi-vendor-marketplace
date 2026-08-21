@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
@@ -59,6 +59,7 @@ export default function Products() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showCatDropdown, setShowCatDropdown] = useState(false);
   const [page, setPage] = useState(1);
+  const [bannerOpen, setBannerOpen] = useState(true);
 
   const filters = {
     search: searchParams.get("search") || "",
@@ -162,6 +163,23 @@ export default function Products() {
           (c.children || []).some((s) => s.slug === filters.category)),
     );
     setCatParentSlug(parent?.slug || "");
+    setBannerOpen(true);
+  }, [filters.category, categories]);
+
+  const activeCategoryBanner = useMemo(() => {
+    if (!filters.category || !categories.length) return null;
+    const parent = categories.find(
+      (c) =>
+        !c.parent_id &&
+        (c.slug === filters.category ||
+          (c.children || []).some((s) => s.slug === filters.category)),
+    );
+    if (parent?.banner) return parent.banner;
+    if (parent?.children) {
+      const sub = parent.children.find((s) => s.slug === filters.category);
+      if (sub?.banner) return sub.banner;
+    }
+    return null;
   }, [filters.category, categories]);
 
   const { data: brands = [] } = useQuery({
@@ -567,48 +585,85 @@ export default function Products() {
               </div>
             </div>
 
-            {/* Active Filters */}
-            {(filters.category || filters.store_name || filters.min_rating) && (
-              <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide">
-                {filters.category && (
-                  <button
-                    onClick={() => clearFilter("category")}
-                    className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1.5 text-[10px] sm:text-xs font-medium text-secondary-800 transition"
-                  >
-                    <p className="pl-1 pr-0.5">{activeCategoryName}</p>
-                    <X className="h-3 w-3 text-secondary-600 hover:text-red-500" />
-                  </button>
-                )}
+            {/* Category Banner */}
+            {activeCategoryBanner && (
+              <div className={`relative ${bannerOpen && "sm:mt-4"}`}>
+                <div
+                  className={`flex justify-between gap-3 absolute z-20 ${bannerOpen && "p-2"}`}
+                >
+                  {/* Active Filters */}
+                  {(filters.category ||
+                    filters.store_name ||
+                    filters.min_rating) && (
+                    <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide">
+                      {filters.category && (
+                        <button
+                          onClick={() => clearFilter("category")}
+                          className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1.5 text-[10px] sm:text-xs font-medium text-secondary-800 transition"
+                        >
+                          <p className="pl-1 pr-0.5">{activeCategoryName}</p>
+                          <X className="h-3 w-3 text-secondary-600 hover:text-red-500" />
+                        </button>
+                      )}
 
-                {filters.store_name && (
-                  <button
-                    onClick={() => clearFilter("store_name")}
-                    className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1.5 text-[10px] sm:text-xs font-medium text-secondary-800 transition"
-                  >
-                    <p className="pl-1 pr-0.5">{filters.store_name}</p>
+                      {filters.store_name && (
+                        <button
+                          onClick={() => clearFilter("store_name")}
+                          className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1.5 text-[10px] sm:text-xs font-medium text-secondary-800 transition"
+                        >
+                          <p className="pl-1 pr-0.5">{filters.store_name}</p>
 
-                    <X className="h-3 w-3 text-secondary-600 hover:text-red-500" />
-                  </button>
-                )}
+                          <X className="h-3 w-3 text-secondary-600 hover:text-red-500" />
+                        </button>
+                      )}
 
-                {filters.min_rating && (
-                  <button
-                    onClick={() => clearFilter("min_rating")}
-                    className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1.5 transition"
-                  >
-                    <div className="flex items-center pl-1 pr-0.5">
-                      {Array.from({ length: Number(filters.min_rating) }).map(
-                        (_, index) => (
-                          <Star
-                            key={index}
-                            className="h-3.5 w-3.5 fill-amber-400 text-amber-400"
-                          />
-                        ),
+                      {filters.min_rating && (
+                        <button
+                          onClick={() => clearFilter("min_rating")}
+                          className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1.5 transition"
+                        >
+                          <div className="flex items-center pl-1 pr-0.5">
+                            {Array.from({
+                              length: Number(filters.min_rating),
+                            }).map((_, index) => (
+                              <Star
+                                key={index}
+                                className="h-3.5 w-3.5 fill-amber-400 text-amber-400"
+                              />
+                            ))}
+                          </div>
+
+                          <X className="h-3 w-3 text-secondary-600 hover:text-red-500" />
+                        </button>
                       )}
                     </div>
-
-                    <X className="h-3 w-3 text-secondary-600 hover:text-red-500" />
-                  </button>
+                  )}
+                  {!bannerOpen && (
+                    <button
+                      onClick={() => setBannerOpen(true)}
+                      className="group flex h-7 w-8 items-center justify-center rounded-full bg-secondary text-secondary-800 transition-all duration-200 hover:bg-secondary-300"
+                    >
+                      <ChevronUp
+                        strokeWidth={1.8}
+                        className={`h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-90`}
+                      />
+                    </button>
+                  )}
+                </div>
+                {bannerOpen && (
+                  <div className="relative mb-4 rounded-xl overflow-hidden">
+                    <img
+                      src={activeCategoryBanner}
+                      alt="Category Banner"
+                      className="w-full h-auto max-h-48 sm:max-h-80 object-cover"
+                    />
+                    <button
+                      onClick={() => setBannerOpen(false)}
+                      className="group absolute top-2 right-2 flex items-center rounded-full bg-black/50 backdrop-blur-sm px-1 py-1 text-[11px] font-medium text-white hover:bg-black/70 transition-colors"
+                    >
+                      <ChevronDown className="transition-transform duration-300 h-3 w-3 group-hover:rotate-180" />
+                    </button>
+                  </div>
                 )}
               </div>
             )}

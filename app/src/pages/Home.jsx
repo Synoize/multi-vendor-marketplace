@@ -10,9 +10,6 @@ import {
   BadgeDollarSign,
   RefreshCw,
   ArrowRight,
-  Play,
-  X,
-  Clapperboard,
   ShoppingBasket,
 } from "lucide-react";
 import { useProductStore } from "@/store/productStore";
@@ -28,6 +25,8 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination } from "swiper/modules";
 import WelcomePopup from "@/components/ui/WelcomePopup";
 import { useAuthStore } from "@/store/authStore";
+import FloatingVideoPlayer from "@/components/ui/FloatingVideoPlayer";
+import VideoReelsOverlay from "@/components/ui/VideoReelsOverlay";
 import "swiper/css";
 import "swiper/css/pagination";
 
@@ -76,38 +75,39 @@ function CountdownTimer({ targetDate }) {
 // Hero Banner Carousel (manual, no lib required)
 function HeroBanner({ banners }) {
   const [active, setActive] = useState(0);
-  useEffect(() => {
-    if (!banners.length) return;
-    const interval = setInterval(
-      () => setActive((i) => (i + 1) % banners.length),
-      4000,
-    );
-    return () => clearInterval(interval);
-  }, [banners.length]);
-
   if (!banners.length) return <SkeletonBanner />;
   return (
-    <div className="relative overflow-hidden rounded-xl bg-secondary-200 aspect-[6/3] md:aspect-[5/2]">
-      {banners.map((b, i) => (
-        <div
-          key={b.id}
-          className={`absolute inset-0 transition-opacity duration-700 ${i === active ? "opacity-100 z-10" : "opacity-0 z-0"}`}
-        >
-          <Link to={b.link || "#"}>
-            <img
-              src={b.image || `https://picsum.photos/seed/${b.id}/1200/400`}
-              alt={b.title}
-              className="w-full h-full object-cover"
-            />
-          </Link>
-        </div>
-      ))}
-      {/* Dots */}
+    <div className="relative overflow-hidden flex gap-8">
+      <Swiper
+        modules={[Autoplay, Pagination]}
+        spaceBetween={8}
+        slidesPerView={1}
+        loop={banners.length > 1}
+        speed={800}
+        autoplay={{
+          delay: 4000,
+          disableOnInteraction: false,
+          pauseOnMouseEnter: true,
+        }}
+        onSlideChange={(swiper) => setActive(swiper.realIndex)}
+        className="rounded-xl aspect-[6/3] md:aspect-[5/2] smooth-swiper"
+      >
+        {banners.map((b) => (
+          <SwiperSlide key={b.id}>
+            <Link to={b.link || "#"} className="block w-full h-full">
+              <img
+                src={b.image || `https://picsum.photos/seed/${b.id}/1200/400`}
+                alt={b.title}
+                className="w-full h-full object-cover rounded-xl"
+              />
+            </Link>
+          </SwiperSlide>
+        ))}
+      </Swiper>
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
         {banners.map((_, i) => (
-          <button
+          <div
             key={i}
-            onClick={() => setActive(i)}
             className={`h-1.5 rounded-full transition-all ${i === active ? "w-4 bg-secondary" : "w-2 bg-black/30"}`}
           />
         ))}
@@ -163,20 +163,6 @@ function CategoryPill({ cat }) {
       </span>
     </Link>
   );
-}
-
-function getYouTubeId(url = "") {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=)([\w-]+)/,
-    /(?:youtu\.be\/)([\w-]+)/,
-    /(?:youtube\.com\/embed\/)([\w-]+)/,
-    /(?:youtube\.com\/shorts\/)([\w-]+)/,
-  ];
-  for (const re of patterns) {
-    const m = url.match(re);
-    if (m) return m[1];
-  }
-  return url.includes("youtube") ? null : url;
 }
 
 export default function Home() {
@@ -263,18 +249,9 @@ export default function Home() {
     },
   });
 
-  const { data: videos = [] } = useQuery({
-    queryKey: ["videos"],
-    queryFn: async () => {
-      const data = await useBannerStore.getState().fetchVideos();
-      return data || [];
-    },
-  });
-
-  const [activeVideo, setActiveVideo] = useState(null);
-
   const { user, isAuthenticated } = useAuthStore();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showReels, setShowReels] = useState(false);
 
   const { data: recentlyViewed = [], isLoading: recentlyLoading } = useQuery({
     queryKey: ["products", "recently-viewed"],
@@ -296,6 +273,12 @@ export default function Home() {
     setShowWelcome(false);
     localStorage.removeItem("show_welcome");
   };
+
+  const [showVideo, setShowVideo] = useState(false);
+
+  useEffect(() => {
+    setTimeout(() => setShowVideo(true), 4000);
+  }, []);
 
   return (
     <>
@@ -736,127 +719,6 @@ export default function Home() {
             </div>
           )}
         </section>
-        {/* Featured Videos */}
-        {videos.length > 0 && (
-          <section className="bg-white">
-            <SectionHeader
-              title="Featured Videos"
-              subtitle="Watch and shop with our video guides"
-              icon={<Clapperboard className="h-5 w-5 text-primary" />}
-            />
-            <div className="px-3 sm:px-8 lg:px-12">
-              <Swiper
-                modules={[Autoplay]}
-                spaceBetween={16}
-                slidesPerView={1.15}
-                loop={videos.length > 1}
-                autoplay={{ delay: 4000, disableOnInteraction: false }}
-                breakpoints={{
-                  0: {
-                    slidesPerView: 1.4,
-                    spaceBetween: 12,
-                  },
-
-                  346: {
-                    slidesPerView: 1.6,
-                    spaceBetween: 12,
-                  },
-                  480: {
-                    slidesPerView: 2,
-                    spaceBetween: 14,
-                  },
-                  640: {
-                    slidesPerView: 2.4,
-                    spaceBetween: 16,
-                  },
-                  768: {
-                    slidesPerView: 3,
-                    spaceBetween: 18,
-                  },
-                  1024: {
-                    slidesPerView: 4,
-                    spaceBetween: 20,
-                  },
-                  1280: {
-                    slidesPerView: 4.4,
-                    spaceBetween: 22,
-                  },
-                  1540: {
-                    slidesPerView: 6,
-                    spaceBetween: 24,
-                  },
-                }}
-              >
-                {videos.map((v) => {
-                  const vid = getYouTubeId(v.url);
-                  return (
-                    <SwiperSlide key={v.id}>
-                      <button
-                        onClick={() => vid && setActiveVideo(v)}
-                        className="group relative block w-full overflow-hidden rounded-xl bg-secondary-200 aspect-[4/6]"
-                      >
-                        <img
-                          src={
-                            v.thumbnail ||
-                            `https://i.ytimg.com/vi/${vid || ""}/hqdefault.jpg`
-                          }
-                          alt={v.title}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-white/90 shadow-lg transition-transform duration-300 group-hover:scale-110">
-                            <Play className="h-5 w-5 sm:h-6 sm:w-6 text-primary fill-primary translate-x-0.5" />
-                          </span>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 text-left">
-                          <h3 className="text-sm sm:text-base font-normal text-white line-clamp-1">
-                            {v.title}
-                          </h3>
-                          {v.description && (
-                            <p className="mt-0.5 text-[10px] sm:text-xs text-secondary line-clamp-1">
-                              {v.description}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    </SwiperSlide>
-                  );
-                })}
-              </Swiper>
-            </div>
-          </section>
-        )}
-        {/* Video Modal */}
-        {activeVideo && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
-            <div
-              className="absolute inset-0 bg-black/80"
-              onClick={() => setActiveVideo(null)}
-            />
-            <div className="relative w-full max-w-md">
-              <button
-                onClick={() => setActiveVideo(null)}
-                className="absolute -top-10 right-0 p-2 text-white hover:text-secondary-200 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-              <div className="overflow-hidden rounded-xl bg-black aspect-video shadow-2xl">
-                <iframe
-                  src={`https://www.youtube.com/embed/${getYouTubeId(activeVideo.url)}?autoplay=1`}
-                  title={activeVideo.title}
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-              <p className="mt-3 text-white font-normal text-center sm:text-left">
-                {activeVideo.title}
-              </p>
-            </div>
-          </div>
-        )}
         {/* Trust Section */}
         <section className="bg-white pt-4 p-8 sm:pt-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
@@ -901,6 +763,12 @@ export default function Home() {
           </div>
         </section>
       </div>
+
+      {showVideo && <FloatingVideoPlayer onClick={() => setShowReels(true)} />}
+      <VideoReelsOverlay
+        isOpen={showReels}
+        onClose={() => setShowReels(false)}
+      />
     </>
   );
 }

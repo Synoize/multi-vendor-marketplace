@@ -144,7 +144,7 @@ export default function Navbar() {
       {/* Main Navbar */}
       <header className="sticky top-0 z-50 w-full shadow-sm">
         {/* Top Header */}
-        <div className="max-w-[1920px] mx-auto px-2 md:px-8 lg:px-12 bg-primary">
+        <div className="max-w-[1920px] mx-auto px-2 md:px-8 bg-primary">
           <div className="flex items-center justify-between h-14 md:h-16 gap-2 md:gap-8">
             {/* Left Section */}
             <div className="flex items-center gap-1.5 md:gap-8 flex-1 min-w-0">

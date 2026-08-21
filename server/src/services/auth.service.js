@@ -63,9 +63,6 @@ const registerUser = async ({ name, email, phone, password, referralCode }) => {
     const [newUser] = await conn.execute('SELECT id FROM users WHERE email = ?', [email]);
     const userId = newUser[0].id;
 
-    // Create wallet
-    await conn.execute('INSERT INTO wallets (user_id, balance) VALUES (?, 0)', [userId]);
-
     // Track referral
     if (referrerId) {
       await conn.execute(
@@ -140,7 +137,7 @@ const verifyEmail = async (email, otp) => {
 /**
  * Login user (Send OTP if password absent, authenticate directly if password present)
  */
-const loginUser = async (email, password) => {
+const loginUser = async (email, password, referralCode) => {
   let user = await queryOne('SELECT id, name, email, phone, avatar, role, is_active, is_verified, referral_code, password_hash FROM users WHERE email = ?', [email]);
   
   if (!user) {
@@ -152,17 +149,33 @@ const loginUser = async (email, password) => {
     const name = email.split('@')[0];
     const passwordHash = await bcrypt.hash(Math.random().toString(36), BCRYPT_ROUNDS);
     const myReferralCode = generateReferralCode();
+
+    let referrerId = null;
+    if (referralCode) {
+      const referrer = await queryOne('SELECT id FROM users WHERE referral_code = ? AND id != (SELECT id FROM users WHERE email = ?)', [referralCode, email]);
+      if (!referrer) {
+        throw Object.assign(new Error('Invalid referral code'), { statusCode: 400 });
+      }
+      referrerId = referrer.id;
+    }
     
     await transaction(async (conn) => {
       await conn.execute(
-        `INSERT INTO users (name, email, password_hash, referral_code, role, is_verified)
-         VALUES (?, ?, ?, ?, 'customer', 0)`,
-        [name, email, passwordHash, myReferralCode]
+        `INSERT INTO users (name, email, password_hash, referral_code, referred_by, role, is_verified)
+         VALUES (?, ?, ?, ?, ?, 'customer', 0)`,
+        [name, email, passwordHash, myReferralCode, referrerId]
       );
       
       const [newUser] = await conn.execute('SELECT id FROM users WHERE email = ?', [email]);
       const userId = newUser[0].id;
-      await conn.execute('INSERT INTO wallets (user_id, balance) VALUES (?, 0)', [userId]);
+
+      // Track referral
+      if (referrerId) {
+        await conn.execute(
+          'INSERT INTO referrals (referrer_id, referee_id, reward_amount) VALUES (?, ?, ?)',
+          [referrerId, userId, config.get('referral.rewardAmount')]
+        );
+      }
     });
     
     user = await queryOne('SELECT id, name, email, phone, avatar, role, is_active, is_verified, referral_code, password_hash FROM users WHERE email = ?', [email]);

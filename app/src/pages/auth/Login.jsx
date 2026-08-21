@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { ShoppingBag, Mail, Lock } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
@@ -9,6 +9,8 @@ import { assets } from "../../assets/assets";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const referralCode = searchParams.get("ref") || undefined;
   const [step, setStep] = useState("email"); // 'email' | 'otp'
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -22,7 +24,7 @@ export default function Login() {
   const handleRequestOTP = async (data) => {
     setLoading(true);
     try {
-      await useAuthStore.getState().requestLoginOtp(data.email);
+      await useAuthStore.getState().requestLoginOtp(data.email, referralCode);
       setEmail(data.email);
       setStep("otp");
       toast.success("OTP sent to your email address!");
@@ -57,7 +59,7 @@ export default function Login() {
       <Helmet>
         <title>Login - The Damini Edit Marketplace</title>
       </Helmet>
-      <div className="min-h-screen bg-gradient-to-br from-primary via-primary-500 to-primary-700 flex items-center justify-center p-4">
+      <div className="h-screen bg-gradient-to-br from-primary via-primary-500 to-primary-700 flex items-center justify-center p-4">
         <div className="max-w-6xl min-h-[60vh] bg-white rounded-3xl overflow-hidden shadow-2xl grid lg:grid-cols-2">
           {/* Left Side */}
           <div className="hidden lg:flex relative">
@@ -91,7 +93,7 @@ export default function Login() {
 
           {/* Right Side */}
           <div className="flex items-center justify-center px-6 py-8 md:px-12">
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-md h-auto">
               {/* Mobile Logo */}
               <img
                 src={assets.logo}
@@ -109,9 +111,23 @@ export default function Login() {
                     We'll send a verification code to your email.
                   </p>
 
+                  {referralCode && (
+                    <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
+                      <span className="text-amber-600 text-lg">🎁</span>
+                      <div>
+                        <p className="text-xs font-semibold text-amber-800">
+                          You were referred by a friend!
+                        </p>
+                        <p className="text-[10px] text-amber-700">
+                          Get 50 bonus coins on your first purchase
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <form
                     onSubmit={handleSubmit(handleRequestOTP)}
-                    className="mt-8 space-y-5"
+                    className="mt-6 space-y-5"
                   >
                     <div>
                       <label className="text-sm font-medium text-secondary-950">

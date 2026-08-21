@@ -481,14 +481,14 @@ export default function About() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
             to="/seller-register"
-            className="group inline-flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-xl text-sm hover:bg-opacity-90 transition-colors"
+            className="group inline-flex items-center justify-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl text-sm hover:bg-opacity-90 transition-colors"
           >
             Become a Seller{" "}
             <ArrowRight className="h-4 w-4 transform transition-all duration-300 group-hover:translate-x-1" />
           </Link>
           <Link
             to="/products"
-            className="group inline-flex items-center justify-center gap-2 rounded-xl border text-secondary-950 px-6 py-3 text-sm font-medium transition-all duration-300 hover:bg-secondary hover:shadow-sm"
+            className="group inline-flex items-center justify-center gap-2 rounded-xl border text-secondary-950 px-6 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-secondary hover:shadow-sm"
           >
             <ShoppingCart className="h-4 w-4 transform transition-all duration-300 group-hover:scale-110" />{" "}
             Start Shopping

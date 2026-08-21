@@ -19,6 +19,7 @@ const OrderSuccess = lazy(() => import("@/pages/OrderSuccess"));
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const Profile = lazy(() => import("@/pages/Profile"));
+
 const SellerRegister = lazy(() => import("@/pages/SellerRegister"));
 const VendorStore = lazy(() => import("@/pages/VendorStore"));
 const Support = lazy(() => import("@/pages/Support"));
@@ -57,6 +58,8 @@ export default function App() {
   const { fetchCart } = useCartStore();
   const [splash, setSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
+  const [pageLoaded, setPageLoaded] = useState(false);
+  const [minTimePassed, setMinTimePassed] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -68,11 +71,29 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  // Show splash for a minimum of 2s, then fade it out
+  // Track when page finishes loading
   useEffect(() => {
-    const minTimer = setTimeout(() => setSplashFading(true), 2000);
-    return () => clearTimeout(minTimer);
+    if (document.readyState === "complete") {
+      setPageLoaded(true);
+    } else {
+      const onLoad = () => setPageLoaded(true);
+      window.addEventListener("load", onLoad);
+      return () => window.removeEventListener("load", onLoad);
+    }
   }, []);
+
+  // Minimum 2s timer
+  useEffect(() => {
+    const timer = setTimeout(() => setMinTimePassed(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Fade only when both page loaded AND min 2s passed
+  useEffect(() => {
+    if (pageLoaded && minTimePassed) {
+      setSplashFading(true);
+    }
+  }, [pageLoaded, minTimePassed]);
 
   // Lock body scroll while splash is visible so no scrollbar shows behind it
   useEffect(() => {

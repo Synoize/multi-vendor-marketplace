@@ -120,14 +120,16 @@ export default function Videos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Featured Videos</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Featured Videos
+          </h1>
           <p className="text-gray-500 text-sm">
             Manage video clips for customer interactive shopping grids
           </p>
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          className="flex items-center gap-1.5 bg-primary hover:bg-opacity-90 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="h-4 w-4" /> Add Video
         </button>
@@ -151,7 +153,9 @@ export default function Videos() {
             key: "title",
             label: "Title",
             render: (val) => (
-              <span className="font-semibold text-gray-900">{val || "Untitled Video"}</span>
+              <span className="font-semibold text-gray-900">
+                {val || "Untitled Video"}
+              </span>
             ),
           },
           {
@@ -159,7 +163,9 @@ export default function Videos() {
             label: "URL",
             sortable: false,
             render: (val) => (
-              <span className="text-xs text-gray-400 truncate font-mono max-w-[200px] block">{val}</span>
+              <span className="text-xs text-gray-400 truncate font-mono max-w-[200px] block">
+                {val}
+              </span>
             ),
           },
           {
@@ -185,7 +191,11 @@ export default function Videos() {
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
-                {val ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                {val ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
                 {val ? "Active" : "Inactive"}
               </button>
             ),
@@ -222,8 +232,8 @@ export default function Videos() {
       />
 
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-xl w-full max-w-md p-6">
+        <div className="fixed h-screen inset-0 -top-6 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-xl w-full max-w-md max-h-[90vh] overflow-auto scrollbar-thin p-6">
             <h3 className="font-bold text-gray-900 text-lg mb-4">
               {editingVideo ? "Edit Featured Video" : "Add Featured Video"}
             </h3>
@@ -291,7 +301,7 @@ export default function Videos() {
                 <button
                   type="submit"
                   disabled={saveMutation.isPending}
-                  className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-colors"
+                  className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-opacity-90 transition-colors"
                 >
                   {saveMutation.isPending
                     ? "Saving..."
@@ -314,7 +324,7 @@ export default function Videos() {
         }}
         loading={deleteMutation.isPending}
         title="Remove Video"
-        message={`Are you sure you want to remove "${deleteTarget?.title || 'this video'}"? This cannot be undone.`}
+        message={`Are you sure you want to remove "${deleteTarget?.title || "this video"}"? This cannot be undone.`}
         confirmLabel="Remove"
         variant="danger"
       />

@@ -26,6 +26,7 @@ const emptyForm = {
   description: "",
   image: "",
   icon: "",
+  banner: "",
   sort_order: "0",
 };
 
@@ -101,6 +102,7 @@ export default function Categories() {
       description: cat.description || "",
       image: cat.image || "",
       icon: cat.icon || "",
+      banner: cat.banner || "",
       sort_order: cat.sort_order != null ? String(cat.sort_order) : "0",
     });
     setShowModal(true);
@@ -271,7 +273,7 @@ export default function Categories() {
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          className="flex items-center gap-1.5 bg-primary hover:bg-opacity-90 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="h-4 w-4" /> Add Category
         </button>
@@ -320,7 +322,7 @@ export default function Categories() {
               placeholder="e.g. Electronics"
               value={form.name}
               onChange={set("name")}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-red-300 focus:ring-2 focus:ring-red-50 focus:outline-none"
+              className="w-full bg-secondary border rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-secondary-600 outline-none"
             />
           </div>
 
@@ -332,7 +334,7 @@ export default function Categories() {
               <select
                 value={form.parent_id}
                 onChange={set("parent_id")}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-red-300 focus:ring-2 focus:ring-red-50 focus:outline-none"
+                className="w-full bg-secondary border rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-secondary-600 outline-none"
               >
                 <option value="">— None (Top level) —</option>
                 {parentOptions.map((c) => (
@@ -350,7 +352,7 @@ export default function Categories() {
                 type="number"
                 value={form.sort_order}
                 onChange={set("sort_order")}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-red-300 focus:ring-2 focus:ring-red-50 focus:outline-none"
+                className="w-full bg-secondary border rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-secondary-600 outline-none"
               />
             </div>
           </div>
@@ -371,6 +373,13 @@ export default function Categories() {
             />
           </div>
 
+          <ImageUpload
+            label="Category Banner (shown when user clicks this category)"
+            value={form.banner}
+            uploadPath="banner"
+            onChange={(url) => setForm((f) => ({ ...f, banner: url }))}
+          />
+
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Description
@@ -380,7 +389,7 @@ export default function Categories() {
               placeholder="Short description of this category"
               value={form.description}
               onChange={set("description")}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-red-300 focus:ring-2 focus:ring-red-50 focus:outline-none resize-none"
+              className="w-full bg-secondary border rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-secondary-600 outline-none resize-none"
             />
           </div>
 
@@ -395,7 +404,7 @@ export default function Categories() {
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600"
+              className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-opacity-90"
             >
               {saveMutation.isPending
                 ? "Saving..."

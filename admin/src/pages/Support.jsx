@@ -102,7 +102,7 @@ export default function Support() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
               activeTab === tab.id
-                ? "bg-red-500 text-white"
+                ? "bg-primary text-white"
                 : "bg-gray-100 text-gray-500 hover:bg-gray-200"
             }`}
           >

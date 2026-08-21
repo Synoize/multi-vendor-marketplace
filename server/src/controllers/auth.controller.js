@@ -10,7 +10,8 @@ const authService = require('../services/auth.service');
 
 /** POST /auth/register */
 const register = asyncHandler(async (req, res) => {
-  const result = await authService.loginUser(req.body.email);
+  const { email, referralCode } = req.body;
+  const result = await authService.loginUser(email, null, referralCode);
   sendCreated(res, null, result.message);
 });
 
@@ -31,8 +32,8 @@ const resendOTP = asyncHandler(async (req, res) => {
 
 /** POST /auth/login */
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const result = await authService.loginUser(email, password);
+  const { email, password, referralCode } = req.body;
+  const result = await authService.loginUser(email, password, referralCode);
   if (result.directLogin) {
     setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
     sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 'Login successful');

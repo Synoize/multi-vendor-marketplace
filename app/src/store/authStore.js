@@ -37,8 +37,10 @@ export const useAuthStore = create(
         }
       },
 
-      requestLoginOtp: async (email) => {
-        const { data } = await api.post('/auth/login', { email })
+      requestLoginOtp: async (email, referralCode) => {
+        const payload = { email };
+        if (referralCode) payload.referralCode = referralCode;
+        const { data } = await api.post('/auth/login', payload)
         return data
       },
 

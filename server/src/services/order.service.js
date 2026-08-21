@@ -8,6 +8,7 @@ const { generateOrderNumber } = require('../utils/sku.util');
 const { getShippingConfig } = require('../utils/shipping.util');
 const emailService = require('./email.service');
 const notificationService = require('./notification.service');
+const coinService = require('./coin.service');
 const config = require('config');
 
 // In-memory checkout locks to prevent duplicate submissions
@@ -173,11 +174,21 @@ const computeCheckout = async (userId, { addressId, items, couponCode, offerId, 
 /**
  * Create order from checkout
  */
-const createOrder = async (userId, { addressId, items, couponCode, offerId, paymentMethod, notes }) => {
+const createOrder = async (userId, { addressId, items, couponCode, offerId, paymentMethod, notes, coinsToRedeem }) => {
   await acquireCheckoutLock(userId);
   try {
     const { address, validatedItems, subtotal, discount, offerDiscount, totalDiscount, shippingCharges, total, couponId, offerIdApplied } = await computeCheckout(userId, { addressId, items, couponCode, offerId, paymentMethod });
 
+    // Handle coin redemption
+    let coinDiscount = 0;
+    let coinsUsed = 0;
+    if (coinsToRedeem && coinsToRedeem > 0) {
+      const result = await coinService.redeemCoins(userId, coinsToRedeem, null, subtotal);
+      coinDiscount = result.discount;
+      coinsUsed = result.coinsUsed;
+    }
+
+    const finalTotal = Math.max(total - coinDiscount, 0);
     const orderNumber = generateOrderNumber();
     const cancelDeadline = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -185,9 +196,9 @@ const createOrder = async (userId, { addressId, items, couponCode, offerId, paym
     await transaction(async (conn) => {
       // Create order
       const [orderResult] = await conn.execute(
-        `INSERT INTO orders (order_number, user_id, address_id, coupon_id, subtotal, discount, shipping_charges, total, payment_method, cancel_deadline, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderNumber, userId, addressId, couponId, subtotal, totalDiscount, shippingCharges, total, paymentMethod || 'cod', cancelDeadline, notes || null]
+        `INSERT INTO orders (order_number, user_id, address_id, coupon_id, subtotal, discount, shipping_charges, total, payment_method, cancel_deadline, notes, coins_redeemed, coins_discount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderNumber, userId, addressId, couponId, subtotal, totalDiscount + coinDiscount, shippingCharges, finalTotal, paymentMethod || 'cod', cancelDeadline, notes || null, coinsUsed, coinDiscount]
       );
 
       // Get order id
@@ -239,10 +250,10 @@ const createOrder = async (userId, { addressId, items, couponCode, offerId, paym
 
     // Fire-and-forget confirmation emails & notifications so the HTTP
     // response is not delayed by SMTP (order is already committed).
-    sendOrderNotifications(userId, address, orderId, orderNumber, total, paymentMethod, validatedItems)
+    sendOrderNotifications(userId, address, orderId, orderNumber, finalTotal, paymentMethod, validatedItems)
       .catch(() => {});
 
-    return { orderId, orderNumber, total };
+    return { orderId, orderNumber, total: finalTotal, coinsUsed };
   } finally {
     releaseCheckoutLock(userId);
   }

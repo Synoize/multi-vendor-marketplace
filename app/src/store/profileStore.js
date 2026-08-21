@@ -3,7 +3,7 @@ import api from '@/lib/axios'
 
 export const useProfileStore = create((set, get) => ({
   addresses: [],
-  wallet: null,
+  coins: null,
 
   fetchAddresses: async () => {
     try {
@@ -41,10 +41,10 @@ export const useProfileStore = create((set, get) => ({
     return data.data
   },
 
-  fetchWallet: async () => {
+  fetchCoins: async () => {
     try {
-      const { data } = await api.get('/users/me/wallet')
-      set({ wallet: data.data })
+      const { data } = await api.get('/users/me/coins')
+      set({ coins: data.data })
       return data.data
     } catch {
       return null

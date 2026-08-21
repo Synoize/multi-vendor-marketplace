@@ -115,24 +115,13 @@ Cookie Data: Expires based on cookie type (session cookies expire on browser clo
 • Opt-out: Unsubscribe from marketing communications at any time
 • Grievance: File a complaint with our Data Protection Officer
 
-To exercise any of these rights, contact us at privacy@damini.com. We will respond within 30 days.`,
+To exercise any of these rights, contact us at support@thedaminiedit.com. We will respond within 30 days.`,
   },
   {
     id: "children",
     icon: ShieldCheck,
     title: "Children's Privacy",
     content: `Damini Marketplace is not intended for users under 18 years of age. We do not knowingly collect personal information from children. If we become aware that a child has provided us with personal data, we will take steps to delete such information promptly.`,
-  },
-  {
-    id: "grievance",
-    icon: Mail,
-    title: "Grievance Officer",
-    content: `In accordance with the Information Technology Act, 2000 and the rules made thereunder, the Grievance Officer for The Damini Edit Marketplace can be contacted at:
-
-Email: grievance@damini.com
-Address: The Damini Edit Internet Private Limited, 23 BESA Road, Nagpur, Maharashtra - 440037
-
-We aim to resolve all complaints within 30 days of receipt.`,
   },
 ];
 
@@ -225,10 +214,10 @@ export default function Privacy() {
               For privacy-related inquiries, contact our Data Protection Officer
               at{" "}
               <a
-                href="mailto:privacy@damini.com"
+                href="mailto:support@thedaminiedit.com"
                 className="text-primary font-medium hover:underline"
               >
-                privacy@damini.com
+                support@thedaminiedit.com
               </a>
             </p>
           </div>

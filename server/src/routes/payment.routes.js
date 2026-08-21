@@ -4,47 +4,23 @@
 
 const express = require('express');
 const { protect } = require('../middlewares/auth.middleware');
-const { asyncHandler } = require('../middlewares/error.middleware');
-const { sendSuccess, sendCreated, sendError } = require('../utils/response.util');
-const paymentService = require('../services/payment.service');
+const paymentController = require('../controllers/payment.controller');
 
 const router = express.Router();
 
 /** POST /payments/create-order — legacy: create Razorpay order for existing order (adsmanager) */
-router.post('/create-order', protect, asyncHandler(async (req, res) => {
-  const { orderId } = req.body;
-  const data = await paymentService.createRazorpayOrder(orderId, req.user.id);
-  sendCreated(res, data, 'Payment order created');
-}));
+router.post('/create-order', protect, paymentController.createOrder);
 
 /** POST /payments/initiate — create Razorpay order (order is created only after payment) */
-router.post('/initiate', protect, asyncHandler(async (req, res) => {
-  const data = await paymentService.initiateRazorpayOrder(req.user.id, req.body);
-  sendCreated(res, data, 'Payment initiated');
-}));
+router.post('/initiate', protect, paymentController.initiatePayment);
 
 /** POST /payments/verify — verify payment, then create the order */
-router.post('/verify', protect, asyncHandler(async (req, res) => {
-  const { razorpayOrderId, razorpayPaymentId, signature } = req.body;
-  const result = await paymentService.verifyPayment(razorpayOrderId, razorpayPaymentId, signature, req.user.id);
-  sendSuccess(res, result);
-}));
+router.post('/verify', protect, paymentController.verifyPayment);
 
 /** GET /payments/:orderId — get payment details */
-router.get('/:orderId', protect, asyncHandler(async (req, res) => {
-  const { queryOne } = require('../database/connection');
-  const payment = await queryOne(
-    'SELECT * FROM payments WHERE order_id = ?', [req.params.orderId]
-  );
-  sendSuccess(res, payment);
-}));
+router.get('/:orderId', protect, paymentController.getPaymentByOrder);
 
 /** POST /payments/webhook — Razorpay webhook (raw body) */
-router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
-  const sig = req.headers['x-razorpay-signature'];
-  const body = JSON.parse(req.body);
-  await paymentService.handleWebhook(body, sig);
-  res.json({ status: 'ok' });
-}));
+router.post('/webhook', express.raw({ type: 'application/json' }), paymentController.handleWebhook);
 
 module.exports = router;

@@ -60,16 +60,36 @@ export default function App() {
   const checkAuth = useAuthStore((s) => s.checkAuth);
   const [splash, setSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
+  const [pageLoaded, setPageLoaded] = useState(false);
+  const [minTimePassed, setMinTimePassed] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // Show splash for a minimum of 2s, then fade it out
+  // Track when page finishes loading
   useEffect(() => {
-    const minTimer = setTimeout(() => setSplashFading(true), 2000);
-    return () => clearTimeout(minTimer);
+    if (document.readyState === "complete") {
+      setPageLoaded(true);
+    } else {
+      const onLoad = () => setPageLoaded(true);
+      window.addEventListener("load", onLoad);
+      return () => window.removeEventListener("load", onLoad);
+    }
   }, []);
+
+  // Minimum 2s timer
+  useEffect(() => {
+    const timer = setTimeout(() => setMinTimePassed(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Fade only when both page loaded AND min 2s passed
+  useEffect(() => {
+    if (pageLoaded && minTimePassed) {
+      setSplashFading(true);
+    }
+  }, [pageLoaded, minTimePassed]);
 
   // Lock body scroll while splash is visible so no scrollbar shows behind it
   useEffect(() => {

@@ -14,7 +14,7 @@ app:
 database:
   host: "localhost"
   port: 3302
-  name: "u228855643_thedaminiedit"
+  name: "thedaminiedit"
   user: "root"
   password: "synoize"
   connectionLimit: 25
@@ -69,6 +69,14 @@ commission:
 
 referral:
   rewardAmount: 100 # ₹100 per successful referral
+
+coins:
+  referralReward: 100 # coins for referrer on ₹5000+ delivered order
+  firstPurchaseReward: 50 # coins for new referred customer on first delivered order
+  redemptionRate: 1 # 1 coin = ₹1 discount
+  minRedemption: 100 # minimum coins to redeem at once
+  minOrderForRedemption: 1000 # minimum order subtotal to allow coin redemption
+  minOrderForReferralReward: 5000 # minimum order total for referrer to earn coins
 
 cors:
   origins:

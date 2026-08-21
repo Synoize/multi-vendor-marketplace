@@ -43,11 +43,15 @@ export default function Banners() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin-banners"] });
-      toast.success(vars.id ? "Banner updated successfully" : "Banner created successfully");
+      toast.success(
+        vars.id ? "Banner updated successfully" : "Banner created successfully",
+      );
       resetForm();
     },
     onError: (err, vars) => {
-      toast.error(vars?.id ? "Failed to update banner" : "Failed to create banner");
+      toast.error(
+        vars?.id ? "Failed to update banner" : "Failed to create banner",
+      );
     },
   });
 
@@ -144,7 +148,7 @@ export default function Banners() {
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          className="flex items-center gap-1.5 bg-primary hover:bg-opacity-90 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="h-4 w-4" /> Add Banner
         </button>
@@ -195,7 +199,7 @@ export default function Banners() {
             sortable: false,
             render: (_, row) =>
               row.link ? (
-                <span className="text-xs text-red-500 font-semibold flex items-center gap-1">
+                <span className="text-xs text-secondary-800 font-medium flex items-center gap-1">
                   <LinkIcon className="h-3 w-3" /> {row.link}
                 </span>
               ) : (
@@ -268,8 +272,8 @@ export default function Banners() {
       />
 
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-xl w-full max-w-md p-6">
+        <div className="fixed h-screen inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-xl max-h-[90vh] w-full max-w-md p-6 overflow-auto scrollbar-thin">
             <h3 className="font-bold text-gray-900 text-lg mb-4">
               {editingBanner ? "Edit Promo Banner" : "Add Promo Banner"}
             </h3>
@@ -286,7 +290,7 @@ export default function Banners() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, title: e.target.value }))
                   }
-                  className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300"
+                  className="w-full border bg-secondary rounded-xl px-3 py-2 text-sm text-secondary-950 outline-none focus:border-secondary-600"
                 />
               </div>
               <div>
@@ -300,7 +304,7 @@ export default function Banners() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, subtitle: e.target.value }))
                   }
-                  className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300"
+                  className="w-full border bg-secondary rounded-xl px-3 py-2 text-sm text-secondary-950 outline-none focus:border-secondary-600"
                 />
               </div>
               {!editingBanner && (
@@ -314,7 +318,8 @@ export default function Banners() {
               )}
               {editingBanner && (
                 <p className="text-xs text-gray-400">
-                  Image cannot be changed after creation — delete and re-create to replace the visual.
+                  Image cannot be changed after creation — delete and re-create
+                  to replace the visual.
                 </p>
               )}
               <div>
@@ -328,7 +333,7 @@ export default function Banners() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, link: e.target.value }))
                   }
-                  className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300"
+                  className="w-full border bg-secondary rounded-xl px-3 py-2 text-sm text-secondary-950 outline-none focus:border-secondary-600"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -341,7 +346,7 @@ export default function Banners() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, position: e.target.value }))
                     }
-                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300"
+                    className="w-full border bg-secondary rounded-xl px-3 py-2 text-sm text-secondary-950 outline-none focus:border-secondary-600"
                   >
                     <option value="hero">Hero Carousel</option>
                     <option value="sidebar">Side Banners</option>
@@ -360,7 +365,7 @@ export default function Banners() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, sort_order: e.target.value }))
                     }
-                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300"
+                    className="w-full border bg-secondary rounded-xl px-3 py-2 text-sm text-secondary-950 outline-none focus:border-secondary-600"
                   />
                 </div>
               </div>
@@ -376,7 +381,7 @@ export default function Banners() {
                 <button
                   type="submit"
                   disabled={saveMutation.isPending}
-                  className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-colors"
+                  className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-opacity-90 transition-colors"
                 >
                   {saveMutation.isPending
                     ? "Saving..."
@@ -399,7 +404,7 @@ export default function Banners() {
         }}
         loading={deleteMutation.isPending}
         title="Delete Banner"
-        message={`Are you sure you want to delete "${deleteTarget?.title || 'this banner'}"? This cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteTarget?.title || "this banner"}"? This cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"
       />

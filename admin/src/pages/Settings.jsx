@@ -1,155 +1,189 @@
-import React, { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '../lib/axios'
-import { toast } from 'sonner'
-import Spinner from '../components/ui/Spinner'
-import { Settings as SettingsIcon, Percent, Truck, Clock, ShieldAlert } from 'lucide-react'
+import React, { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "../lib/axios";
+import { toast } from "sonner";
+import Spinner from "../components/ui/Spinner";
+import {
+  Settings as SettingsIcon,
+  Percent,
+  Truck,
+  Clock,
+  ShieldAlert,
+} from "lucide-react";
 
 export default function Settings() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   const [form, setForm] = useState({
-    commission_rate: '5',
-    shipping_charge: '40',
-    free_shipping_threshold: '499',
-    cancel_window_minutes: '15',
-    online_pay_off: '199',
-    site_name: 'Damini',
-    maintenance_mode: 'false',
-  })
+    commission_rate: "5",
+    shipping_charge: "40",
+    free_shipping_threshold: "499",
+    cancel_window_minutes: "15",
+    online_pay_off: "199",
+    site_name: "Damini",
+    maintenance_mode: "false",
+  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-settings'],
+    queryKey: ["admin-settings"],
     queryFn: async () => {
-      const res = await api.get('/admin/settings')
-      return res.data.data
-    }
-  })
+      const res = await api.get("/admin/settings");
+      return res.data.data;
+    },
+  });
 
   useEffect(() => {
     if (data) {
       setForm({
-        commission_rate: data.commission_rate || '5',
-        shipping_charge: data.shipping_charge || '40',
-        free_shipping_threshold: data.free_shipping_threshold || '499',
-        cancel_window_minutes: data.cancel_window_minutes || '15',
-        online_pay_off: data.online_pay_off || '199',
-        site_name: data.site_name || 'Damini',
-        maintenance_mode: data.maintenance_mode || 'false',
-      })
+        commission_rate: data.commission_rate || "5",
+        shipping_charge: data.shipping_charge || "40",
+        free_shipping_threshold: data.free_shipping_threshold || "499",
+        cancel_window_minutes: data.cancel_window_minutes || "15",
+        online_pay_off: data.online_pay_off || "199",
+        site_name: data.site_name || "Damini",
+        maintenance_mode: data.maintenance_mode || "false",
+      });
     }
-  }, [data])
+  }, [data]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload) => {
-      return api.put('/admin/settings', payload)
+      return api.put("/admin/settings", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-settings'] })
-      toast.success('Platform settings updated successfully')
+      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
+      toast.success("Platform settings updated successfully");
     },
     onError: () => {
-      toast.error('Failed to update settings')
-    }
-  })
+      toast.error("Failed to update settings");
+    },
+  });
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    saveMutation.mutate(form)
-  }
+    e.preventDefault();
+    saveMutation.mutate(form);
+  };
 
   const updateField = (key, value) => {
-    setForm(f => ({ ...f, [key]: value }))
-  }
+    setForm((f) => ({ ...f, [key]: value }));
+  };
 
-  if (isLoading) return <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner size="lg" />
+      </div>
+    );
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <SettingsIcon className="h-6 w-6 text-red-500" /> Platform Settings
+          <SettingsIcon className="h-6 w-6 text-primary" /> Platform Settings
         </h1>
-        <p className="text-gray-500 text-sm">Configure global marketplace commissions, shipping charges, and platform operational mode</p>
+        <p className="text-gray-500 text-sm">
+          Configure global marketplace commissions, shipping charges, and
+          platform operational mode
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6"
+      >
         {/* Section 1: Financial */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-2">
-            <Percent className="h-4 w-4 text-red-500" /> Financial Parameters
+            <Percent className="h-4 w-4 text-primary" /> Financial Parameters
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Standard Commission Rate (%) *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Standard Commission Rate (%) *
+              </label>
               <input
                 type="number"
                 required
                 value={form.commission_rate}
-                onChange={e => updateField('commission_rate', e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+                onChange={(e) => updateField("commission_rate", e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-secondary-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Default Shipping Charge (₹) *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Default Shipping Charge (₹) *
+              </label>
               <input
                 type="number"
                 required
                 value={form.shipping_charge}
-                onChange={e => updateField('shipping_charge', e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+                onChange={(e) => updateField("shipping_charge", e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-secondary-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Free Shipping Threshold (₹) *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Free Shipping Threshold (₹) *
+              </label>
               <input
                 type="number"
                 required
                 value={form.free_shipping_threshold}
-                onChange={e => updateField('free_shipping_threshold', e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+                onChange={(e) =>
+                  updateField("free_shipping_threshold", e.target.value)
+                }
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-secondary-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Online Payment Offer (₹ Off) *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Online Payment Offer (₹ Off) *
+              </label>
               <input
                 type="number"
                 min="0"
                 required
                 value={form.online_pay_off}
-                onChange={e => updateField('online_pay_off', e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+                onChange={(e) => updateField("online_pay_off", e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-secondary-600"
               />
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Customers automatically get this flat discount when they pay online (UPI / Cards / Net Banking). Set 0 to disable.
+            Customers automatically get this flat discount when they pay online
+            (UPI / Cards / Net Banking). Set 0 to disable.
           </p>
         </div>
 
         {/* Section 2: Fulfillment */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-2">
-            <Truck className="h-4 w-4 text-red-500" /> Operational Rules
+            <Truck className="h-4 w-4 text-primary" /> Operational Rules
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Customer Cancel Window (minutes) *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Customer Cancel Window (minutes) *
+              </label>
               <input
                 type="number"
                 required
                 value={form.cancel_window_minutes}
-                onChange={e => updateField('cancel_window_minutes', e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+                onChange={(e) =>
+                  updateField("cancel_window_minutes", e.target.value)
+                }
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-secondary-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Site / Platform Name *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Site / Platform Name *
+              </label>
               <input
                 type="text"
                 required
                 value={form.site_name}
-                onChange={e => updateField('site_name', e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+                onChange={(e) => updateField("site_name", e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-secondary-600"
               />
             </div>
           </div>
@@ -162,12 +196,16 @@ export default function Settings() {
           </h3>
           <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-center justify-between">
             <div className="space-y-0.5">
-              <p className="font-bold text-gray-900 text-sm">Site Maintenance Mode</p>
-              <p className="text-xs text-gray-500">Temporarily disable storefront access for updates</p>
+              <p className="font-bold text-gray-900 text-sm">
+                Site Maintenance Mode
+              </p>
+              <p className="text-xs text-gray-500">
+                Temporarily disable storefront access for updates
+              </p>
             </div>
             <select
               value={form.maintenance_mode}
-              onChange={e => updateField('maintenance_mode', e.target.value)}
+              onChange={(e) => updateField("maintenance_mode", e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
             >
               <option value="false">Operational (Live)</option>
@@ -180,12 +218,12 @@ export default function Settings() {
           <button
             type="submit"
             disabled={saveMutation.isPending}
-            className="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
+            className="bg-primary hover:bg-opacity-90 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
           >
-            {saveMutation.isPending ? 'Saving...' : 'Save Settings'}
+            {saveMutation.isPending ? "Saving..." : "Save Settings"}
           </button>
         </div>
       </form>
     </div>
-  )
+  );
 }

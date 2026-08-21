@@ -49,6 +49,18 @@
     <title>Seller Hub | The Damini Edit</title>
   </head>
   <body class="antialiased">
+    <div id="html-splash" style="position:fixed;inset:0;z-index:9998;background:#9F0202;display:flex;align-items:center;justify-content:center;">
+      <img src="/logo.jpeg" alt="Damini" style="width:112px;height:auto;animation:splashZoom 2s ease-in-out infinite;" />
+    </div>
+    <script>
+      (function(){
+        var done=false, loaded=false;
+        function check(){if(done&&loaded){var el=document.getElementById('html-splash');if(el)el.remove();}}
+        setTimeout(function(){done=true;check();},2500);
+        if(document.readyState==='complete'){loaded=true;check();}
+        else window.addEventListener('load',function(){loaded=true;check();});
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

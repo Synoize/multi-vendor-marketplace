@@ -263,12 +263,12 @@ export default function Products() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-red-300 transition-colors"
+            className="w-full pl-10 pr-4 py-2 bg-secondary border rounded-xl text-sm text-secondary-950 outline-none focus:border-secondary-600 transition-colors"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-1 inline-flex gap-1 overflow-x-auto scrollbar-hide">
+      <div className="bg-white rounded-2xl border shadow-sm p-1 inline-flex gap-1 overflow-x-auto scrollbar-hide">
         {[
           { id: "pending", label: "Pending Approval" },
           { id: "active", label: "Active Listings" },
@@ -281,7 +281,7 @@ export default function Products() {
               setActiveTab(tab.id);
               setPage(1);
             }}
-            className={`px-5 py-2.5 text-xs font-medium rounded-xl whitespace-nowrap transition-all ${activeTab === tab.id ? "bg-red-500 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"}`}
+            className={`px-5 py-2.5 text-xs font-medium rounded-xl whitespace-nowrap transition-all ${activeTab === tab.id ? "bg-primary text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"}`}
           >
             {tab.label}
           </button>

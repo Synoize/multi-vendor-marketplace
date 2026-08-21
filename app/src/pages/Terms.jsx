@@ -158,10 +158,10 @@ export default function Terms() {
             <p className="text-secondary-700 text-xs">
               If you have any questions about these Terms, please contact us at{" "}
               <a
-                href="mailto:legal@damini.com"
+                href="mailto:support@thedaminiedit.com"
                 className="text-primary font-medium hover:underline"
               >
-                legal@damini.com
+                support@thedaminiedit.com
               </a>
             </p>
           </div>

@@ -291,10 +291,6 @@ export default function MyDetails() {
             label="Email Verified"
             value={user?.is_verified ? "Yes" : "No"}
           />
-          <DetailRow
-            label="Wallet Balance"
-            value={`₹${Number(user?.wallet_balance || 0).toLocaleString("en-IN")}`}
-          />
           <DetailRow label="Referral Code" value={user?.referral_code} />
           <DetailRow
             label="Member Since"

@@ -44,6 +44,7 @@ const {
   festivalRouter,
 } = require("./routes/banner.routes");
 const uploadRoutes = require("./routes/upload.routes");
+const coinRoutes = require("./routes/coin.routes");
 
 const app = express();
 
@@ -204,6 +205,7 @@ app.use(`${API}/support`, supportRouter);
 app.use(`${API}/reports`, reportRouter);
 app.use(`${API}/upload`, uploadRoutes);
 app.use(`${API}/festival-sales`, festivalRouter);
+app.use(`${API}/coins`, coinRoutes);
 
 // Error handling
 app.use(notFound);

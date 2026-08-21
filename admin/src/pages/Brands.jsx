@@ -8,7 +8,15 @@ import Modal from "../components/ui/Modal";
 import ImageUpload from "../components/ui/ImageUpload";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import DataTable from "../components/ui/DataTable";
-import { Plus, Pencil, Trash2, Eye, EyeOff, BadgeCheck, Download } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  BadgeCheck,
+  Download,
+} from "lucide-react";
 
 const emptyForm = {
   id: null,
@@ -96,8 +104,7 @@ export default function Brands() {
     setDeleteTarget(brand);
   };
 
-  const set = (key) => (e) =>
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const handleExport = () => {
     const headers = ["Brand", "Slug", "Products", "Status"];
@@ -216,7 +223,7 @@ export default function Brands() {
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          className="flex items-center gap-1.5 bg-primary hover:bg-opacity-90 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="h-4 w-4" /> Add Brand
         </button>
@@ -305,7 +312,7 @@ export default function Brands() {
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600"
+              className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-opacity-90"
             >
               {saveMutation.isPending
                 ? "Saving..."
