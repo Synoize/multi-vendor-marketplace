@@ -195,6 +195,7 @@ const sendBusinessOTP = asyncHandler(async (req, res) => {
     await emailService.sendOTPEmail(business_email, 'Seller', otp);
   } catch (e) {
     logger.error('Failed to send business email OTP:', e.message);
+    return sendError(res, 'Failed to send OTP to business email. Please try again.', 500);
   }
   sendSuccess(res, null, 'OTP sent to business email');
 });

@@ -285,6 +285,27 @@ const checkPincodeDelivery = asyncHandler(async (req, res) => {
   sendSuccess(res, result);
 });
 
+/** GET /products/pincode-lookup?pincode=XXXXXX — resolve a pincode to city/state for address auto-fill */
+const lookupPincode = asyncHandler(async (req, res) => {
+  const pincode = (req.query.pincode || '').trim();
+  if (!/^\d{6}$/.test(pincode)) {
+    return sendError(res, 'Enter a valid 6-digit pincode', 400);
+  }
+  const pincodeService = require('../services/pincode.service');
+  const info = await pincodeService.lookupPincode(pincode);
+  if (info.status === 'success') {
+    sendSuccess(res, {
+      pincode,
+      city: info.district || info.name,
+      district: info.district,
+      state: info.state,
+      name: info.name,
+    });
+  } else {
+    sendError(res, 'Pincode not found', 404);
+  }
+});
+
 module.exports = {
   ensureProductNotBlocked,
   listProducts,
@@ -310,4 +331,5 @@ module.exports = {
   unblockProduct,
   setFeaturedProduct,
   checkPincodeDelivery,
+  lookupPincode,
 };

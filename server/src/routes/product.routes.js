@@ -31,6 +31,9 @@ router.get('/search/suggestions', rateLimit('search'), productController.getSear
 /** GET /products/delivery-check?pincode=XXXXXX */
 router.get('/delivery-check', rateLimit('read'), productController.checkPincodeDelivery);
 
+/** GET /products/pincode-lookup?pincode=XXXXXX */
+router.get('/pincode-lookup', rateLimit('read'), productController.lookupPincode);
+
 /** GET /products/recently-viewed */
 router.get('/recently-viewed', protect, rateLimit('read'), productController.getRecentlyViewed);
 

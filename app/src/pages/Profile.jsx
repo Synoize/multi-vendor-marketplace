@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   Gift,
   Share2,
+  Loader2,
 } from "lucide-react";
 import api from "@/lib/axios";
 
@@ -73,6 +74,8 @@ export default function Profile() {
   const [addrModalOpen, setAddrModalOpen] = useState(false);
   const [editingAddr, setEditingAddr] = useState(null);
   const [addrForm, setAddrForm] = useState(EMPTY_FORM);
+  const [pincodeInfo, setPincodeInfo] = useState(null);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const queryClient = useQueryClient();
 
@@ -182,6 +185,7 @@ export default function Profile() {
 
   const openAdd = () => {
     setEditingAddr(null);
+    setPincodeInfo(null);
     setAddrForm({ ...EMPTY_FORM, phone: user?.phone || "" });
     setAddrModalOpen(true);
   };
@@ -196,6 +200,7 @@ export default function Profile() {
 
   const openEdit = (addr) => {
     setEditingAddr(addr);
+    setPincodeInfo(null);
     setAddrForm({
       name: addr.name || "",
       phone: addr.phone || "",
@@ -214,6 +219,31 @@ export default function Profile() {
   };
 
   const setAddr = (key, value) => setAddrForm((f) => ({ ...f, [key]: value }));
+
+  const lookupPincode = async (codeArg) => {
+    const code = (codeArg ?? addrForm.pincode).trim();
+    if (!/^\d{6}$/.test(code)) {
+      toast.error("Enter a valid 6-digit pincode");
+      return;
+    }
+    setPincodeLoading(true);
+    setPincodeInfo(null);
+    try {
+      const { data } = await api.get("/products/pincode-lookup", {
+        params: { pincode: code },
+      });
+      const info = data?.data;
+      if (info) {
+        setPincodeInfo(info);
+        setAddr("city", info.city || "");
+        setAddr("state", info.state || "");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Pincode not found");
+    } finally {
+      setPincodeLoading(false);
+    }
+  };
 
   return (
     <>
@@ -674,39 +704,54 @@ export default function Profile() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-xs font-medium text-secondary-800 mb-1">
                     Pincode *
                   </label>
-                  <input
-                    value={addrForm.pincode}
-                    onChange={(e) => setAddr("pincode", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
-                    placeholder="400001"
-                  />
+                  <div className=" relative flex gap-2">
+                    <input
+                      value={addrForm.pincode}
+                      onChange={(e) => {
+                        const val = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6);
+                        setAddr("pincode", val);
+                        setPincodeInfo(null);
+                        if (val.length === 6) lookupPincode(val);
+                      }}
+                      className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
+                      placeholder="400001"
+                      inputMode="numeric"
+                    />
+                    {pincodeLoading && (
+                      <Loader2 className=" absolute w-4 h-4 text-secondary-600 animate-spin mx-1 my-3 right-1" />
+                    )}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-secondary-800 mb-1">
-                    City *
-                  </label>
-                  <input
-                    value={addrForm.city}
-                    onChange={(e) => setAddr("city", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
-                    placeholder="Mumbai"
-                  />
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs font-medium text-secondary-800 mb-1">
-                    State *
-                  </label>
-                  <input
-                    value={addrForm.state}
-                    onChange={(e) => setAddr("state", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
-                    placeholder="Maharashtra"
-                  />
+                <div className="flex col-span-2 gap-4">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-medium text-secondary-800 mb-1">
+                      City *
+                    </label>
+                    <input
+                      value={addrForm.city}
+                      onChange={(e) => setAddr("city", e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
+                      placeholder="Mumbai"
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-medium text-secondary-800 mb-1">
+                      State *
+                    </label>
+                    <input
+                      value={addrForm.state}
+                      onChange={(e) => setAddr("state", e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
+                      placeholder="Maharashtra"
+                    />
+                  </div>
                 </div>
               </div>
               <div>

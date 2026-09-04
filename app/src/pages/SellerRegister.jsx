@@ -198,7 +198,30 @@ export default function SellerRegister() {
     }
   };
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+  const ALLOWED_DOC_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "application/pdf",
+  ];
+
   const setFile = (key, file) => {
+    if (file) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(
+          `File "${file.name}" exceeds the 5MB size limit. Please choose a smaller file.`,
+        );
+        return;
+      }
+      if (!ALLOWED_DOC_TYPES.includes(file.type)) {
+        toast.error(
+          `File "${file.name}" is not allowed. Use JPG, PNG, WebP, GIF, or PDF.`,
+        );
+        return;
+      }
+    }
     setFiles((prev) => {
       const next = { ...prev };
       if (file) next[key] = file;
