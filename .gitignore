@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+dist/
+build/
+.env
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Config (local overrides)
+server/config/local.yaml
+server/config/production.yaml
+
+# Uploads
+server/uploads/*
+!server/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+server.zip
+dist.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+
+# Cache
+.eslintcache
+.parcel-cache

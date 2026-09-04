@@ -1,0 +1,189 @@
+app:
+  name: "The Damini Edit API"
+  version: "1.0.0"
+  env: "production"
+  port: 5000
+  clientUrl: "http://localhost:5173"
+  vendorUrl: "http://localhost:5174"
+  adminUrl: "http://localhost:5175"
+  adsUrl: "http://localhost:5176"
+  uploadDir: "uploads"
+  maxFileSize: 5242880 # 5MB
+  encryptionKey: "d4m1n1_kYc_3nc_k3y_32b!t" # AES-256 key for KYC files
+
+database:
+  host: "localhost"
+  port: 3302
+  name: "thedaminiedit"
+  user: "root"
+  password: "synoize"
+  connectionLimit: 25
+  charset: "utf8mb4"
+
+jwt:
+  accessSecret: "damini_access_secret_change_in_production"
+  refreshSecret: "damini_refresh_secret_change_in_production"
+  accessExpiry: "2d"
+  refreshExpiry: "7d"
+  cookieMaxAge: 172800000 # 2 days in ms
+
+otp:
+  expiry: 600 # 10 minutes in seconds
+  length: 6
+
+bcrypt:
+  rounds: 12
+
+# Policy-based rate limiting.
+# - `enabled` controls whether any limiter is active at all.
+# - Each named policy defines windowMs (window) + max (requests per window).
+# - The `global` policy is the whole-API safety net applied to /api/v1.
+# - The `dev` block is used automatically when NODE_ENV is development/test and
+#   provides relaxed limits so local work is not blocked (limiting stays ON).
+# In-memory store: limits are per process and reset on restart.
+rateLimit:
+  enabled: true
+
+  global:
+    windowMs: 60000 # 1 minute
+    max: 300
+
+  read:
+    windowMs: 60000
+    max: 180
+
+  write:
+    windowMs: 60000
+    max: 60
+
+  search:
+    windowMs: 60000
+    max: 60
+
+  auth:
+    windowMs: 900000 # 15 minutes
+    max: 10
+
+  otp:
+    windowMs: 600000 # 10 minutes
+    max: 5
+
+  cart:
+    windowMs: 60000
+    max: 100
+
+  order:
+    windowMs: 60000
+    max: 10
+
+  payment:
+    windowMs: 60000
+    max: 5
+
+  coupon:
+    windowMs: 60000
+    max: 20
+
+  review:
+    windowMs: 3600000 # 1 hour
+    max: 10
+
+  upload:
+    windowMs: 60000
+    max: 20
+
+  admin:
+    windowMs: 60000
+    max: 60
+
+  # Relaxed limits for development/test so rate limiting stays enabled but
+  # never blocks local work. Overrides the matching policy window/limits.
+  dev:
+    global:
+      windowMs: 60000
+      max: 5000
+    read:
+      windowMs: 60000
+      max: 1000
+    write:
+      windowMs: 60000
+      max: 500
+    search:
+      windowMs: 60000
+      max: 500
+    auth:
+      windowMs: 60000
+      max: 100
+    otp:
+      windowMs: 60000
+      max: 100
+    cart:
+      windowMs: 60000
+      max: 500
+    order:
+      windowMs: 60000
+      max: 100
+    payment:
+      windowMs: 60000
+      max: 100
+    coupon:
+      windowMs: 60000
+      max: 100
+    review:
+      windowMs: 3600000
+      max: 100
+    upload:
+      windowMs: 60000
+      max: 100
+    admin:
+      windowMs: 60000
+      max: 300
+
+mail:
+  host: "smtp.gmail.com"
+  port: 587
+  secure: false
+  user: "your-email@gmail.com"
+  password: "your-app-password"
+  from: "The Damini Edit <no-reply@thedaminiedit.com>"
+
+razorpay:
+  keyId: "rzp_test_T3CabQjKXQRFQI"
+  keySecret: "NPjqcmvS2qtqhf6aJPIbfQ2k"
+  webhookSecret: "YOUR_WEBHOOK_SECRET"
+
+shiprocket:
+  email: "your-shiprocket-email@example.com"
+  password: "your-shiprocket-password"
+  channelId: "12034125"
+  baseUrl: "https://apiv2.shiprocket.in/v1/external"
+  pickupEnabled: true
+
+# Delivery day estimates (in days) for the pincode delivery check.
+# Values can be overridden at runtime with the matching DELIVERY_* env vars.
+delivery:
+  localDays: 3 # same district / very close (DELIVERY_LOCAL_DAYS)
+  sameStateDays: 5 # same state (DELIVERY_SAME_STATE_DAYS)
+  crossStateDays: 7 # different states (DELIVERY_CROSS_STATE_DAYS)
+  defaultDays: 9 # pickup pincode unknown / failed to resolve (DELIVERY_DEFAULT_DAYS)
+
+commission:
+  defaultRate: 5 # 5% platform commission
+
+referral:
+  rewardAmount: 100 # ₹100 per successful referral
+
+coins:
+  referralReward: 100 # coins for referrer on ₹5000+ delivered order
+  firstPurchaseReward: 50 # coins for new referred customer on first delivered order
+  redemptionRate: 1 # 1 coin = ₹1 discount
+  minRedemption: 100 # minimum coins to redeem at once
+  minOrderForRedemption: 1000 # minimum order subtotal to allow coin redemption
+  minOrderForReferralReward: 5000 # minimum order total for referrer to earn coins
+
+cors:
+  origins:
+    - "http://localhost:5173"
+    - "http://localhost:5174"
+    - "http://localhost:5175"
+    - "http://localhost:5176"

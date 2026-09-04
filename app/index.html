@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#9F0202" />
+    <meta
+      name="description"
+      content="Damini - India's Favourite Multi-Vendor Marketplace. Shop millions of products from verified sellers. Best prices, fast delivery, easy returns."
+    />
+    <meta
+      name="keywords"
+      content="Damini, online shopping, marketplace, electronics, fashion, home, India"
+    />
+    <meta
+      property="og:title"
+      content="Damini - India's Favourite Marketplace"
+    />
+    <meta
+      property="og:description"
+      content="Shop millions of products from verified sellers."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>The Damini Edit - India's Favourite Marketplace</title>
+  </head>
+  <body class="antialiased">
+    <div
+      id="html-splash"
+      class="fixed inset-0 z-[99999] flex h-screen w-full items-center justify-center bg-[#9F0202] opacity-100 transition-opacity duration-300"
+    >
+      <img
+        src="/logo-icon.png"
+        alt="The Damini Edit"
+        class="h-auto w-28 animate-pulse"
+      />
+    </div>
+
+    <div id="root"></div>
+
+    <script>
+      (() => {
+        const splash = document.getElementById("html-splash");
+
+        let pageLoaded = false;
+        let minimumTimePassed = false;
+
+        function hideSplash() {
+          if (!pageLoaded || !minimumTimePassed) return;
+
+          splash.classList.add("opacity-0");
+
+          setTimeout(() => {
+            splash.remove();
+          }, 300);
+        }
+
+        // Wait until complete page is loaded
+        window.addEventListener("load", () => {
+          pageLoaded = true;
+          hideSplash();
+        });
+
+        // Loader must stay for at least 2 seconds
+        setTimeout(() => {
+          minimumTimePassed = true;
+          hideSplash();
+        }, 2500);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

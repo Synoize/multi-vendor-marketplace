@@ -1,0 +1,27 @@
+/**
+ * Damini Marketplace - Category Routes
+ */
+
+const express = require('express');
+const { protect, requireRole } = require('../middlewares/auth.middleware');
+const { rateLimit } = require('../middlewares/rateLimit.middleware');
+const categoryController = require('../controllers/category.controller');
+
+const categoryRouter = express.Router();
+
+/** GET /categories — hierarchical tree (?all=1 includes inactive) */
+categoryRouter.get('/', rateLimit('read'), categoryController.listCategories);
+
+/** GET /categories/:slug */
+categoryRouter.get('/:slug', rateLimit('read'), categoryController.getCategoryBySlug);
+
+/** POST /categories — admin */
+categoryRouter.post('/', protect, requireRole('admin'), rateLimit('admin'), categoryController.createCategory);
+
+/** PUT /categories/:id */
+categoryRouter.put('/:id', protect, requireRole('admin'), rateLimit('admin'), categoryController.updateCategory);
+
+/** DELETE /categories/:id */
+categoryRouter.delete('/:id', protect, requireRole('admin'), rateLimit('admin'), categoryController.deleteCategory);
+
+module.exports = { categoryRouter };
