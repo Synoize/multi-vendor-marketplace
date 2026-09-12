@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { useVendorStore } from "@/store/vendorStore";
+import api from "@/lib/axios";
 import LegalModal from "@/components/ui/LegalModal";
 import Spinner from "@/components/ui/Spinner";
 import {
@@ -39,6 +40,8 @@ import {
   Loader,
 } from "lucide-react";
 
+const STORAGE_KEY = "seller-register-draft";
+
 const STEPS = [
   { label: "Store", icon: Store },
   { label: "Business", icon: FileText },
@@ -66,20 +69,35 @@ export default function SellerRegister() {
     verifyBusinessOtp,
     submitKyc,
     fetchKycData,
+    restoreEmailVerification,
   } = useVendorStore();
-  const [step, setStep] = useState(0);
+
+  const loadDraft = () => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed;
+      }
+    } catch {}
+    return null;
+  };
+
+  const draft = loadDraft();
+  const [step, setStep] = useState(draft?.step ?? 0);
   const [loading, setLoading] = useState(false);
   const [businessTypeOpen, setBusinessTypeOpen] = useState(false);
   const businessTypeRef = useRef(null);
   const [emailOtp, setEmailOtp] = useState("");
   const [legalModal, setLegalModal] = useState(null);
-  const [agreedTerms, setAgreedTerms] = useState(false);
-  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(draft?.agreedTerms ?? false);
+  const [agreedPrivacy, setAgreedPrivacy] = useState(draft?.agreedPrivacy ?? false);
+  const [showForm, setShowForm] = useState(draft?.showForm ?? false);
 
   const vendorStatus = user?.vendor_status;
-  // 'pending' means "draft (not yet submitted)" when no store_name exists, and
-  // "submitted, awaiting review" once the form (which requires store_name) is in.
+  // 'draft' / 'pending' without a store_name means "not yet fully submitted",
+  // while 'pending' + store_name (or 'submitted'/'under_review') means
+  // "submitted, awaiting review".
   const isUnderReview =
     vendorStatus === "pending"
       ? !!user?.store_name
@@ -88,6 +106,7 @@ export default function SellerRegister() {
 
   useEffect(() => {
     checkAuth();
+    restoreEmailVerification();
   }, []);
 
   useEffect(() => {
@@ -103,24 +122,24 @@ export default function SellerRegister() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
   const [form, setForm] = useState({
-    business_name: "",
-    business_type: "proprietorship",
-    business_email: "",
-    gst_number: "",
-    fssai_number: "",
-    pan_number: "",
-    store_name: "",
-    store_description: "",
-    bank_name: "",
-    account_number: "",
-    ifsc_code: "",
-    account_holder: "",
-    pickup_name: "",
-    pickup_phone: "",
-    pickup_line1: "",
-    pickup_city: "",
-    pickup_state: "",
-    pickup_pincode: "",
+    business_name: draft?.form?.business_name || "",
+    business_type: draft?.form?.business_type || "proprietorship",
+    business_email: draft?.form?.business_email || "",
+    gst_number: draft?.form?.gst_number || "",
+    fssai_number: draft?.form?.fssai_number || "",
+    pan_number: draft?.form?.pan_number || "",
+    store_name: draft?.form?.store_name || "",
+    store_description: draft?.form?.store_description || "",
+    bank_name: draft?.form?.bank_name || "",
+    account_number: draft?.form?.account_number || "",
+    ifsc_code: draft?.form?.ifsc_code || "",
+    account_holder: draft?.form?.account_holder || "",
+    pickup_name: draft?.form?.pickup_name || "",
+    pickup_phone: draft?.form?.pickup_phone || "",
+    pickup_line1: draft?.form?.pickup_line1 || "",
+    pickup_city: draft?.form?.pickup_city || "",
+    pickup_state: draft?.form?.pickup_state || "",
+    pickup_pincode: draft?.form?.pickup_pincode || "",
   });
 
   const [files, setFiles] = useState({});
@@ -128,6 +147,50 @@ export default function SellerRegister() {
   const fileInputRefs = {};
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const [pickupPincodeLoading, setPickupPincodeLoading] = useState(false);
+
+  const lookupPickupPincode = async (code) => {
+    const c = (code ?? "").trim();
+    if (!/^\d{6}$/.test(c)) return;
+    setPickupPincodeLoading(true);
+    try {
+      const { data } = await api.get("/products/pincode-lookup", {
+        params: { pincode: c },
+      });
+      const info = data?.data;
+      if (info) {
+        update("pickup_city", info.city || "");
+        update("pickup_state", info.state || "");
+      }
+    } catch {
+      // ignore - user can type city/state manually
+    } finally {
+      setPickupPincodeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ step, form, showForm, agreedTerms, agreedPrivacy })
+      );
+    } catch {}
+  }, [step, form, showForm, agreedTerms, agreedPrivacy]);
+
+  useEffect(() => {
+    const saveOnHide = () => {
+      try {
+        sessionStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ step, form, showForm, agreedTerms, agreedPrivacy })
+        );
+      } catch {}
+    };
+    window.addEventListener("pagehide", saveOnHide);
+    return () => window.removeEventListener("pagehide", saveOnHide);
+  }, [step, form, showForm, agreedTerms, agreedPrivacy]);
 
   const handleReApply = async () => {
     setShowForm(true);
@@ -204,6 +267,8 @@ export default function SellerRegister() {
     "image/png",
     "image/webp",
     "image/gif",
+    "image/heic",
+    "image/heif",
     "application/pdf",
   ];
 
@@ -215,9 +280,11 @@ export default function SellerRegister() {
         );
         return;
       }
-      if (!ALLOWED_DOC_TYPES.includes(file.type)) {
+      const type = (file.type || "").toLowerCase();
+      const isImageByExt = !type && /\.(jpe?g|png|webp|gif|heic|heif|pdf)$/i.test(file.name);
+      if (!ALLOWED_DOC_TYPES.includes(type) && !isImageByExt) {
         toast.error(
-          `File "${file.name}" is not allowed. Use JPG, PNG, WebP, GIF, or PDF.`,
+          `File "${file.name}" is not allowed. Use JPG, PNG, WebP, GIF, HEIC, or PDF.`,
         );
         return;
       }
@@ -266,11 +333,66 @@ export default function SellerRegister() {
       );
       return;
     }
+    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+    const missing = [];
+    if (!form.store_name.trim()) missing.push("Store name");
+    if (
+      !(
+        form.business_name.trim() &&
+        form.pan_number.trim() &&
+        gstinRegex.test(form.gst_number.trim().toUpperCase())
+      )
+    )
+      missing.push("Business details (business name, PAN, valid GST)");
+    if (!emailVerified) missing.push("Business email verification");
+    if (
+      !(
+        form.bank_name.trim() &&
+        form.account_number.trim() &&
+        form.ifsc_code.trim() &&
+        form.account_holder.trim()
+      )
+    )
+      missing.push("Bank details");
+    if (
+      !(
+        form.pickup_name.trim() &&
+        form.pickup_phone.trim() &&
+        form.pickup_line1.trim() &&
+        form.pickup_city.trim() &&
+        form.pickup_state.trim() &&
+        form.pickup_pincode.trim()
+      )
+    )
+      missing.push(
+        "Pickup address details (contact name, phone, address, city, state, pincode)",
+      );
+    const missingDocs = allRequiredFiles.filter(
+      (k) => !files[k] && !existingDocs[k],
+    );
+    if (missingDocs.length)
+      missing.push(`Required documents (${missingDocs.join(", ")})`);
+    if (missing.length) {
+      toast.error(
+        `Please complete all required fields before submitting: ${missing.join(", ")}`,
+      );
+      return;
+    }
     setLoading(true);
     try {
       if (!isAuthenticated) {
         toast.error("Please login first to register as a seller");
         navigate("/login");
+        return;
+      }
+      const oversize = Object.entries(files).find(
+        ([, f]) => f.size > MAX_FILE_SIZE,
+      );
+      if (oversize) {
+        toast.error(
+          `"${oversize[1].name}" exceeds the 5MB size limit. Please upload a smaller file.`,
+        );
+        setLoading(false);
         return;
       }
       const formData = new FormData();
@@ -284,6 +406,7 @@ export default function SellerRegister() {
       toast.success(
         "KYC submitted successfully! Our team will review within 24-48 hours.",
       );
+      sessionStorage.removeItem(STORAGE_KEY);
       await useAuthStore.getState().checkAuth();
       navigate("/profile");
     } catch (err) {
@@ -295,16 +418,21 @@ export default function SellerRegister() {
 
   const canNext = () => {
     if (step === 0) return form.store_name.trim();
-    if (step === 1)
+    if (step === 1) {
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
       return (
         form.business_name.trim() &&
         form.pan_number.trim() &&
+        gstinRegex.test(form.gst_number.trim().toUpperCase()) &&
         emailVerified &&
+        form.pickup_name.trim() &&
+        form.pickup_phone.trim() &&
         form.pickup_line1.trim() &&
         form.pickup_city.trim() &&
         form.pickup_state.trim() &&
         form.pickup_pincode.trim()
       );
+    }
     if (step === 2)
       return (
         form.bank_name.trim() &&
@@ -315,6 +443,38 @@ export default function SellerRegister() {
     if (step === 3)
       return allRequiredFiles.every((k) => files[k] || existingDocs[k]);
     return true;
+  };
+
+  const getMissingFields = () => {
+    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+    const missing = [];
+    if (step === 0) {
+      if (!form.store_name.trim()) missing.push("Store name");
+    } else if (step === 1) {
+      if (!form.business_name.trim()) missing.push("Business name");
+      if (!form.pan_number.trim()) missing.push("PAN number");
+      if (!gstinRegex.test(form.gst_number.trim().toUpperCase()))
+        missing.push("Valid GST number");
+      if (!emailVerified) missing.push("Business email verification");
+      if (!form.pickup_name.trim()) missing.push("Pickup contact name");
+      if (!form.pickup_phone.trim()) missing.push("Pickup phone number");
+      if (!form.pickup_line1.trim()) missing.push("Pickup address");
+      if (!form.pickup_city.trim()) missing.push("Pickup city");
+      if (!form.pickup_state.trim()) missing.push("Pickup state");
+      if (!form.pickup_pincode.trim()) missing.push("Pickup pincode");
+    } else if (step === 2) {
+      if (!form.bank_name.trim()) missing.push("Bank name");
+      if (!form.account_number.trim()) missing.push("Account number");
+      if (!form.ifsc_code.trim()) missing.push("IFSC code");
+      if (!form.account_holder.trim()) missing.push("Account holder name");
+    } else if (step === 3) {
+      const missingDocs = allRequiredFiles.filter(
+        (k) => !files[k] && !existingDocs[k],
+      );
+      if (missingDocs.length)
+        missing.push(`Documents: ${missingDocs.join(", ")}`);
+    }
+    return missing;
   };
 
   const DOCUMENTS = [
@@ -346,7 +506,7 @@ export default function SellerRegister() {
       key: "gst_certificate",
       label: "GST Registration Certificate",
       icon: FileText,
-      required: false,
+      required: true,
     },
     {
       key: "bank_passbook",
@@ -722,7 +882,7 @@ export default function SellerRegister() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-secondary-800 mb-1">
-                        GST Number
+                        GST Number *
                       </label>
                       <input
                         value={form.gst_number}
@@ -730,7 +890,7 @@ export default function SellerRegister() {
                           update("gst_number", e.target.value.toUpperCase())
                         }
                         maxLength={15}
-                        placeholder="15-digit GSTIN (optional)"
+                        placeholder="15-digit GSTIN"
                         className="w-full border rounded-lg px-3 sm:px-4 py-2.5 text-xs sm:text-sm uppercase outline-none focus:border-secondary-600"
                       />
                     </div>
@@ -852,14 +1012,25 @@ export default function SellerRegister() {
                           <label className="block text-xs font-medium text-secondary-800 mb-1">
                             Pincode *
                           </label>
-                          <input
-                            value={form.pickup_pincode}
-                            onChange={(e) =>
-                              update("pickup_pincode", e.target.value)
-                            }
-                            placeholder="6-digit"
-                            className="w-full border rounded-lg px-3 sm:px-4 py-2.5 text-xs sm:text-sm uppercase outline-none focus:border-secondary-600"
-                          />
+                          <div className="relative">
+                            <input
+                              value={form.pickup_pincode}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 6);
+                                update("pickup_pincode", val);
+                                if (val.length === 6)
+                                  lookupPickupPincode(val);
+                              }}
+                              placeholder="6-digit"
+                              inputMode="numeric"
+                              className="w-full border rounded-lg px-3 sm:px-4 py-2.5 text-xs sm:text-sm uppercase outline-none focus:border-secondary-600"
+                            />
+                            {pickupPincodeLoading && (
+                              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary-600 animate-spin" />
+                            )}
+                          </div>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-secondary-800 mb-1">
@@ -926,6 +1097,7 @@ export default function SellerRegister() {
                             onChange={(e) =>
                               update("pickup_phone", e.target.value)
                             }
+                            maxLength={10}
                             placeholder="10-digit mobile"
                             className="w-full border rounded-lg px-3 sm:px-4 py-2.5 text-xs sm:text-sm outline-none focus:border-secondary-600"
                           />
@@ -1098,11 +1270,13 @@ export default function SellerRegister() {
                                             <input
                                               type="file"
                                               accept="image/*,application/pdf"
+                                              capture="environment"
                                               id={`file-${child.key}`}
                                               className="hidden"
                                               onChange={(e) => {
                                                 const f = e.target.files?.[0];
                                                 if (f) setFile(child.key, f);
+                                                e.target.value = "";
                                               }}
                                             />
 
@@ -1189,11 +1363,13 @@ export default function SellerRegister() {
                                   <input
                                     type="file"
                                     accept="image/*,application/pdf"
+                                    capture="environment"
                                     id={`file-${doc.key}`}
                                     className="hidden"
                                     onChange={(e) => {
                                       const f = e.target.files?.[0];
                                       if (f) setFile(doc.key, f);
+                                      e.target.value = "";
                                     }}
                                   />
                                   <label
@@ -1379,9 +1555,16 @@ export default function SellerRegister() {
                 )}
                 {step < STEPS.length - 1 ? (
                   <button
-                    onClick={() => setStep((s) => s + 1)}
-                    disabled={!canNext()}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition-colors"
+                    onClick={() => {
+                      if (!canNext()) {
+                        toast.error(
+                          `Please complete: ${getMissingFields().join(", ")}`,
+                        );
+                        return;
+                      }
+                      setStep((s) => s + 1);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-opacity-90 text-white py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition-colors"
                   >
                     Continue <ArrowRight className="h-3.5 w-3.5" />
                   </button>

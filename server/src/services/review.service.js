@@ -10,6 +10,7 @@ const { getPagination } = require('../utils/pagination.util');
 
 /**
  * Create or update a product review
+ * Reviews are only allowed for users who have received (delivered) this product.
  * @param {string} userId
  * @param {string} productId
  * @param {Object} data - { orderItemId, rating, title, comment, images }
@@ -17,17 +18,52 @@ const { getPagination } = require('../utils/pagination.util');
 const createReview = async (userId, productId, data) => {
   const { orderItemId, rating, title, comment, images } = data;
 
-  // Check if user purchased this product
+  let orderItemIdToUse = orderItemId || null;
   let isVerified = false;
-  if (orderItemId) {
+
+  // If an orderItemId was provided, confirm it's a delivered purchase by this user.
+  if (orderItemIdToUse) {
     const item = await queryOne(
       `SELECT oi.id FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
        WHERE oi.id = ? AND o.user_id = ? AND oi.product_id = ? 
-       AND oi.status = 'delivered' AND oi.is_reviewed = 0`,
-      [orderItemId, userId, productId]
+       AND oi.status = 'delivered'`,
+      [orderItemIdToUse, userId, productId]
     );
     isVerified = !!item;
+    if (!isVerified) orderItemIdToUse = null;
+  }
+
+  // Otherwise auto-find an eligible (delivered, unreviewed) order item.
+  if (!isVerified) {
+    const item = await queryOne(
+      `SELECT oi.id FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       WHERE o.user_id = ? AND oi.product_id = ? 
+       AND oi.status = 'delivered' AND oi.is_reviewed = 0
+       ORDER BY oi.created_at DESC
+       LIMIT 1`,
+      [userId, productId]
+    );
+    if (item) {
+      orderItemIdToUse = item.id;
+      isVerified = true;
+    }
+  }
+
+  // A user without any delivered order for this product cannot review it —
+  // unless they already have a review (allows editing their own review).
+  if (!isVerified) {
+    const existing = await queryOne(
+      'SELECT id FROM reviews WHERE user_id = ? AND product_id = ?',
+      [userId, productId]
+    );
+    if (!existing) {
+      throw Object.assign(
+        new Error('Only customers who purchased this product can review it.'),
+        { statusCode: 403 }
+      );
+    }
   }
 
   const imagesJson = images ? JSON.stringify(images) : null;
@@ -37,16 +73,45 @@ const createReview = async (userId, productId, data) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE rating = VALUES(rating), title = VALUES(title), 
      comment = VALUES(comment), images = VALUES(images), updated_at = NOW()`,
-    [productId, userId, orderItemId || null, rating, title || null, comment || null, imagesJson, isVerified ? 1 : 0]
+    [productId, userId, orderItemIdToUse || null, rating, title || null, comment || null, imagesJson, isVerified ? 1 : 0]
   );
 
   // Mark order item as reviewed
-  if (orderItemId && isVerified) {
-    await query('UPDATE order_items SET is_reviewed = 1 WHERE id = ?', [orderItemId]);
+  if (orderItemIdToUse && isVerified) {
+    await query('UPDATE order_items SET is_reviewed = 1 WHERE id = ?', [orderItemIdToUse]);
   }
 
   // Recalculate product rating
   await updateProductRating(productId);
+};
+
+/**
+ * Check whether a user is eligible to review a product.
+ * @param {string} userId
+ * @param {string} productId
+ * @returns {Promise<{canReview: boolean, orderItemId: string|null, alreadyReviewed: boolean}>}
+ */
+const checkReviewEligibility = async (userId, productId) => {
+  const item = await queryOne(
+    `SELECT oi.id FROM order_items oi
+     JOIN orders o ON oi.order_id = o.id
+     WHERE o.user_id = ? AND oi.product_id = ? 
+     AND oi.status = 'delivered' AND oi.is_reviewed = 0
+     ORDER BY oi.created_at DESC
+     LIMIT 1`,
+    [userId, productId]
+  );
+
+  const existing = await queryOne(
+    'SELECT id FROM reviews WHERE user_id = ? AND product_id = ?',
+    [userId, productId]
+  );
+
+  return {
+    canReview: !!item || !!existing,
+    orderItemId: item?.id || null,
+    alreadyReviewed: !!existing,
+  };
 };
 
 /**
@@ -124,4 +189,4 @@ const deleteReview = async (reviewId, userId) => {
   await updateProductRating(review.product_id);
 };
 
-module.exports = { createReview, getProductReviews, deleteReview, updateProductRating };
+module.exports = { createReview, getProductReviews, deleteReview, updateProductRating, checkReviewEligibility };

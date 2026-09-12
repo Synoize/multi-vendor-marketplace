@@ -14,6 +14,12 @@ const getActiveOffers = asyncHandler(async (req, res) => {
   sendSuccess(res, offers);
 });
 
+/** GET /offers/:id/products — products eligible for an offer (homepage + offer page) */
+const getOfferProducts = asyncHandler(async (req, res) => {
+  const result = await offerService.getOfferProducts(req.params.id, req.query);
+  sendSuccess(res, result);
+});
+
 /** POST /offers/validate */
 const validateOffer = asyncHandler(async (req, res) => {
   const { offerId, cartItems, cartTotal } = req.body;
@@ -55,6 +61,7 @@ const toggleOffer = asyncHandler(async (req, res) => {
 
 module.exports = {
   getActiveOffers,
+  getOfferProducts,
   validateOffer,
   listOffers,
   createOffer,

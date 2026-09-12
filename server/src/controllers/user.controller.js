@@ -6,7 +6,7 @@ const config = require('config');
 const { asyncHandler } = require('../middlewares/error.middleware');
 const { sendSuccess, sendError } = require('../utils/response.util');
 const { query, queryOne, queryRows } = require('../database/connection');
-const { generateReferralCode } = require('../utils/sku.util');
+const authService = require('../services/auth.service');
 const coinService = require('../services/coin.service');
 const adsService = require('../services/ads.service');
 
@@ -147,7 +147,7 @@ const getReferral = asyncHandler(async (req, res) => {
 
   let referralCode = user.referral_code;
   if (!referralCode) {
-    referralCode = generateReferralCode();
+    referralCode = await authService.generateUniqueReferralCode();
     await query('UPDATE users SET referral_code = ? WHERE id = ?', [referralCode, req.user.id]);
   }
 
@@ -155,7 +155,7 @@ const getReferral = asyncHandler(async (req, res) => {
   try {
     stats = await queryOne(
       `SELECT
-        SUM(CASE WHEN referee_coins_credited = 1 THEN 1 ELSE 0 END) as total_referrals,
+        COUNT(*) as total_referrals,
         SUM(CASE WHEN status = 'credited' THEN 1 ELSE 0 END) as credited_referrals,
         SUM(CASE WHEN referrer_coins_credited = 1 THEN 1 ELSE 0 END) as coins_earned_count
        FROM referrals WHERE referrer_id = ?`,

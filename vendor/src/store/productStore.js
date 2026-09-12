@@ -21,10 +21,12 @@ export const useProductStore = create((set) => ({
       throw err
     }
   },
-  fetchCategories: async () => {
+fetchCategories: async () => {
     const { data } = await api.get('/categories')
-    return data?.data || data?.categories || data || []
+    return data.data || data
   },
+  createCategory: (payload) =>
+    api.post('/vendors/categories', payload),
   fetchProduct: async (id) => {
     const { data } = await api.get(`/products/${id}`)
     return data?.data || data?.product || data

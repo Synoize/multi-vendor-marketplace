@@ -71,6 +71,7 @@ const computeCheckout = async (userId, { addressId, items, couponCode, offerId, 
 
   // Validate items & calculate totals
   let subtotal = 0;
+  let gstTotal = 0;
   const validatedItems = [];
 
   // Platform-wide default commission rate (admin "Standard Commission Rate (%)").
@@ -81,12 +82,15 @@ const computeCheckout = async (userId, { addressId, items, couponCode, offerId, 
   const platformCommissionRate =
     settingRow && settingRow.value != null
       ? parseFloat(settingRow.value)
-      : 0.05;
+      : 5;
 
   for (const item of items) {
     const product = await queryOne(
-      `SELECT p.*, v.id as vid, v.commission_rate, v.store_name, v.user_id as vendor_user_id
-       FROM products p JOIN vendors v ON p.vendor_id = v.id
+      `SELECT p.*, v.id as vid, v.commission_rate, v.gst_rate as vendor_gst_rate, v.store_name, v.user_id as vendor_user_id,
+              c.gst_rate as category_gst_rate
+       FROM products p
+       JOIN vendors v ON p.vendor_id = v.id
+       LEFT JOIN categories c ON c.id = p.category_id
        WHERE p.id = ? AND p.deleted_at IS NULL`,
       [item.productId]
     );
@@ -126,8 +130,22 @@ const computeCheckout = async (userId, { addressId, items, couponCode, offerId, 
         ? vendorRate
         : platformCommissionRate
     );
-    const commAmount = itemTotal * commRate;
-    const vendorPayout = itemTotal - commAmount;
+    const commAmount = Math.round(itemTotal * (commRate / 100) * 100) / 100;
+
+    // GST: category rate applies; falls back to the vendor's default GST rate.
+    // The customer price is tax-inclusive (like Flipkart) — GST is NOT added to
+    // the checkout total; it is deducted from the vendor payout alongside commission.
+    const categoryGst = parseFloat(product.category_gst_rate);
+    const vendorGst = parseFloat(product.vendor_gst_rate);
+    const gstRate =
+      !isNaN(categoryGst) && categoryGst !== null
+        ? categoryGst
+        : !isNaN(vendorGst)
+          ? vendorGst
+          : 18;
+    const gstAmount = Math.round(itemTotal * (gstRate / 100) * 100) / 100;
+    gstTotal += gstAmount;
+    const vendorPayout = itemTotal - commAmount - gstAmount;
 
     validatedItems.push({
       productId: item.productId,
@@ -143,6 +161,8 @@ const computeCheckout = async (userId, { addressId, items, couponCode, offerId, 
       totalPrice: itemTotal,
       commissionRate: commRate,
       commissionAmount: commAmount,
+      gstRate,
+      gstAmount,
       vendorPayout,
       returnType: product.return_type || 'none',
       returnWindow: product.return_window || 0,
@@ -251,7 +271,7 @@ const computeCheckout = async (userId, { addressId, items, couponCode, offerId, 
 
   const total = subtotal - totalDiscount + shippingCharges;
 
-  return { address, validatedItems, subtotal, discount, offerDiscount, onlinePayOff, totalDiscount, shippingCharges, shippingBreakdown, total, couponId, offerIdApplied };
+  return { address, validatedItems, subtotal, discount, offerDiscount, onlinePayOff, totalDiscount, shippingCharges, shippingBreakdown, total, gstTotal, couponId, offerIdApplied };
 };
 
 /**
@@ -264,7 +284,7 @@ const createOrder = async (userId, { addressId, items, couponCode, offerId, paym
 
   await acquireCheckoutLock(userId);
   try {
-    const { address, validatedItems, subtotal, discount, offerDiscount, totalDiscount, shippingCharges, total, couponId, offerIdApplied } = await computeCheckout(userId, { addressId, items, couponCode, offerId, paymentMethod });
+    const { address, validatedItems, subtotal, discount, offerDiscount, totalDiscount, shippingCharges, total, gstTotal, couponId, offerIdApplied } = await computeCheckout(userId, { addressId, items, couponCode, offerId, paymentMethod });
 
     // Handle coin redemption
     let coinDiscount = 0;
@@ -283,9 +303,9 @@ const createOrder = async (userId, { addressId, items, couponCode, offerId, paym
     await transaction(async (conn) => {
       // Create order
       const [orderResult] = await conn.execute(
-        `INSERT INTO orders (order_number, user_id, address_id, coupon_id, subtotal, discount, shipping_charges, total, payment_method, cancel_deadline, notes, coins_redeemed, coins_discount)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderNumber, userId, addressId, couponId, subtotal, totalDiscount + coinDiscount, shippingCharges, finalTotal, paymentMethod || 'cod', cancelDeadline, notes || null, coinsUsed, coinDiscount]
+        `INSERT INTO orders (order_number, user_id, address_id, coupon_id, subtotal, discount, shipping_charges, gst_total, total, payment_method, cancel_deadline, notes, coins_redeemed, coins_discount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderNumber, userId, addressId, couponId, subtotal, totalDiscount + coinDiscount, shippingCharges, Math.round(gstTotal * 100) / 100, finalTotal, paymentMethod || 'cod', cancelDeadline, notes || null, coinsUsed, coinDiscount]
       );
 
       // Get order id
@@ -296,11 +316,11 @@ const createOrder = async (userId, { addressId, items, couponCode, offerId, paym
       for (const item of validatedItems) {
         await conn.execute(
           `INSERT INTO order_items (order_id, product_id, vendor_id, variant_id, product_name, product_image,
-            variant_name, quantity, unit_price, total_price, commission_rate, commission_amount, vendor_payout, return_type, return_window)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            variant_name, quantity, unit_price, total_price, commission_rate, commission_amount, gst_rate, gst_amount, vendor_payout, return_type, return_window)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.productId, item.vendorId, item.variantId, item.productName, item.productImage,
             item.variantName, item.quantity, item.unitPrice, item.totalPrice,
-            item.commissionRate, item.commissionAmount, item.vendorPayout, item.returnType, item.returnWindow]
+            item.commissionRate, item.commissionAmount, item.gstRate, item.gstAmount, item.vendorPayout, item.returnType, item.returnWindow]
         );
 
         // Deduct stock

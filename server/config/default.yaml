@@ -8,8 +8,9 @@ app:
   adminUrl: "http://localhost:5175"
   adsUrl: "http://localhost:5176"
   uploadDir: "uploads"
-  maxFileSize: 5242880 # 5MB
-  encryptionKey: "d4m1n1_kYc_3nc_k3y_32b!t" # AES-256 key for KYC files
+  maxFileSize: 5242880 # 5MB (images/documents)
+  maxVideoFileSize: 10485760 # 10MB (product videos)
+  encryptionKey: "ccd9f4d0a33cfeff705a7d6ddee7ab5b93fcd706f34936098b18c9522396a397" # AES-256 key for KYC files
 
 database:
   host: "localhost"
@@ -21,8 +22,8 @@ database:
   charset: "utf8mb4"
 
 jwt:
-  accessSecret: "damini_access_secret_change_in_production"
-  refreshSecret: "damini_refresh_secret_change_in_production"
+  accessSecret: "J:_%/gB(&42ynXH2Gq)Ext#9k6/&a^rNbe9Mrl.(1|A"
+  refreshSecret: "YU5YEU?H)k&AdkcgOZ<oWz}Gb6cbjFaa_rXUYUI_)b8"
   accessExpiry: "2d"
   refreshExpiry: "7d"
   cookieMaxAge: 172800000 # 2 days in ms

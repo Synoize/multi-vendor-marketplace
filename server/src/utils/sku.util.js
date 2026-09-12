@@ -3,6 +3,7 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 /**
  * Generate a unique SKU for a product variant
@@ -31,10 +32,14 @@ const generateOrderNumber = () => {
 
 /**
  * Generate referral code for user
- * Format: DMN + 8 alphanumeric chars
+ * Format: DMN + 8 uppercase alphanumeric chars (crypto-grade randomness)
  */
+const ALPHANUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const generateReferralCode = () => {
-  return 'DMN' + Math.random().toString(36).substring(2, 10).toUpperCase();
+  const bytes = crypto.randomBytes(8);
+  let code = 'DMN';
+  for (let i = 0; i < 8; i++) code += ALPHANUM[bytes[i] % ALPHANUM.length];
+  return code;
 };
 
 /**

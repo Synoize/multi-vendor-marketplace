@@ -173,7 +173,7 @@ const approveVendor = asyncHandler(async (req, res) => {
     return sendSuccess(res, null, 'Vendor already approved');
   }
 
-  await query("UPDATE vendors SET kyc_status = 'approved' WHERE id = ?", [req.params.id]);
+  await query("UPDATE vendors SET kyc_status = 'approved', gst_rate = COALESCE(gst_rate, 18.00) WHERE id = ?", [req.params.id]);
   // Grant the vendor role only on approval so the vendor can log in to the portal
   await query(
     "UPDATE users SET role = 'vendor' WHERE id = (SELECT user_id FROM vendors WHERE id = ?)",

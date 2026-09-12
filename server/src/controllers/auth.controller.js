@@ -42,6 +42,16 @@ const login = asyncHandler(async (req, res) => {
   }
 });
 
+/** POST /auth/validate-referral */
+const validateReferral = asyncHandler(async (req, res) => {
+  const { referralCode } = req.body;
+  const result = await authService.validateReferralCode(referralCode);
+  if (!result) {
+    return sendError(res, 'Invalid referral code', 404);
+  }
+  sendSuccess(res, result, 'Referral code is valid');
+});
+
 /** POST /auth/vendor/request-otp */
 const requestVendorOtp = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -120,4 +130,4 @@ const getMe = asyncHandler(async (req, res) => {
   sendSuccess(res, user);
 });
 
-module.exports = { register, verifyEmail, resendOTP, login, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refresh, logout, getMe };
+module.exports = { register, verifyEmail, resendOTP, login, validateReferral, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refresh, logout, getMe };

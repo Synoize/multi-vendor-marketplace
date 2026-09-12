@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -6,11 +6,13 @@ import { ShoppingBag, Mail, Lock } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { assets } from "../../assets/assets";
+import api from "@/lib/axios";
 
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const referralCode = searchParams.get("ref") || undefined;
+  const [referralStatus, setReferralStatus] = useState("checking"); // 'checking' | 'valid' | 'invalid' | 'none'
   const [step, setStep] = useState("email"); // 'email' | 'otp'
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -21,7 +23,31 @@ export default function Login() {
     formState: { errors },
   } = useForm();
 
+  useEffect(() => {
+    if (!referralCode) {
+      setReferralStatus("none");
+      return;
+    }
+    let cancelled = false;
+    setReferralStatus("checking");
+    api
+      .post("/auth/validate-referral", { referralCode })
+      .then((res) => {
+        if (!cancelled) setReferralStatus("valid");
+      })
+      .catch(() => {
+        if (!cancelled) setReferralStatus("invalid");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [referralCode]);
+
   const handleRequestOTP = async (data) => {
+    if (referralStatus === "invalid") {
+      toast.error("Invalid referral code. Please remove the invalid code from the URL and try again.");
+      return;
+    }
     setLoading(true);
     try {
       await useAuthStore.getState().requestLoginOtp(data.email, referralCode);
@@ -111,7 +137,7 @@ export default function Login() {
                     We'll send a verification code to your email.
                   </p>
 
-                  {referralCode && (
+                  {referralStatus === "valid" && (
                     <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
                       <span className="text-amber-600 text-lg">🎁</span>
                       <div>
@@ -120,6 +146,20 @@ export default function Login() {
                         </p>
                         <p className="text-[10px] text-amber-700">
                           Get 50 bonus coins on your first purchase
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {referralStatus === "invalid" && (
+                    <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2">
+                      <span className="text-red-500 text-lg">⚠️</span>
+                      <div>
+                        <p className="text-xs font-semibold text-red-700">
+                          Invalid referral code
+                        </p>
+                        <p className="text-[10px] text-red-600">
+                          The referral code is not valid. You can still continue.
                         </p>
                       </div>
                     </div>

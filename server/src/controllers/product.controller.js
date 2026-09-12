@@ -132,9 +132,26 @@ const createProduct = asyncHandler(async (req, res) => {
   if (typeof data.variants === 'string') {
     try { data.variants = JSON.parse(data.variants); } catch (e) { delete data.variants; }
   }
-  const imageFiles = req.files || [];
+  const imageFiles = Array.isArray(req.files?.images) ? req.files.images : [];
+  const videoFile = Array.isArray(req.files?.video) ? req.files.video[0] : null;
+  if (videoFile) {
+    data.video_url = `/uploads/videos/${videoFile.filename}`;
+    data.video_type = 'direct';
+  }
   const imageUrls = data.images || [];
   delete data.images;
+  const variantImageFiles = Array.isArray(req.files?.variant_images) ? req.files.variant_images : [];
+  if (Array.isArray(data.variants) && variantImageFiles.length) {
+    let imgIdx = 0;
+    data.variants = data.variants.map((v) => {
+      if (v && (v.image === '__VARIANT_IMAGE__' || v.image?.ref)) {
+        const file = variantImageFiles[imgIdx++];
+        if (file) return { ...v, image: `/uploads/products/${file.filename}` };
+        return { ...v, image: null };
+      }
+      return v;
+    });
+  }
   const allImages = [...imageFiles, ...imageUrls];
   const productId = await productService.createProduct(req.vendor.id, data, allImages);
   sendCreated(res, { productId }, 'Product submitted for approval');
@@ -224,13 +241,19 @@ const deleteProductImage = asyncHandler(async (req, res) => {
   sendSuccess(res, null, 'Image removed');
 });
 
-/** PUT /products/:id — update product (fields + images) */
+/** PUT /products/:id — update product (fields + images + video) */
 const updateProduct = asyncHandler(async (req, res) => {
   const data = normalizeProductData(parseProductBody(req.body));
   if (typeof req.body.existing_images === 'string') {
     try { data.existing_images = JSON.parse(req.body.existing_images); } catch (e) { delete data.existing_images; }
   }
-  await productService.updateProduct(req.params.id, req.vendor.id, data, req.files || []);
+  const imageFiles = Array.isArray(req.files?.images) ? req.files.images : [];
+  const videoFile = Array.isArray(req.files?.video) ? req.files.video[0] : null;
+  if (videoFile) {
+    data.video_url = `/uploads/videos/${videoFile.filename}`;
+    data.video_type = 'direct';
+  }
+  await productService.updateProduct(req.params.id, req.vendor.id, data, imageFiles);
   sendSuccess(res, null, 'Product updated successfully');
 });
 

@@ -15,6 +15,7 @@ import {
   CheckCheck,
   Trash2,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import useAuthStore from "../../store/authStore";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { to: "/campaigns/create", label: "Create Campaign", icon: Plus },
   { to: "/billing", label: "Billing", icon: CreditCard },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/docs", label: "Documentation", icon: BookOpen },
 ];
 
 function Layout() {

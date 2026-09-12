@@ -8,12 +8,16 @@ const { rateLimit } = require('../middlewares/rateLimit.middleware');
 const { attachVendor } = require('../middlewares/vendor.middleware');
 const { uploadKYC, uploadStoreBranding } = require('../middlewares/upload.middleware');
 const vendorController = require('../controllers/vendor.controller');
+const categoryController = require('../controllers/category.controller');
 
 const router = express.Router();
 const vendorProtect = [protect, requireRole('vendor'), attachVendor];
 
 /** GET /vendors/profile */
 router.get('/profile', ...vendorProtect, rateLimit('read'), vendorController.getProfile);
+
+/** POST /vendors/categories — create a custom child category under an existing one */
+router.post('/categories', ...vendorProtect, rateLimit('write'), categoryController.createVendorCategory);
 
 /** PUT /vendors/profile */
 router.put('/profile', ...vendorProtect, rateLimit('write'), vendorController.updateProfile);

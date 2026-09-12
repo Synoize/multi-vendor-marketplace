@@ -1,21 +1,33 @@
-import React, { useState } from 'react'
-import { Plus, Pencil, Trash2, X, Layers, Package, IndianRupee } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { Plus, Pencil, Trash2, X, Layers, Package, IndianRupee, Upload } from 'lucide-react'
 
 const EMPTY_ATTRIBUTE = { key: '', value: '' }
+
+const REF_PREFIX = 'variant-img-'
 
 const inputClass =
   'w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all'
 
-export default function VariantBuilder({ variants = [], onChange }) {
+const isRefObj = (v) =>
+  v && typeof v === 'object' && v.ref && String(v.ref).startsWith(REF_PREFIX)
+
+export default function VariantBuilder({ variants = [], onChange, onImageFiles }) {
   const [formOpen, setFormOpen] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
   const [form, setForm] = useState({ name: '', price: '', mrp: '', stock: 0 })
   const [attributes, setAttributes] = useState([{ ...EMPTY_ATTRIBUTE }])
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
+  const fileMapRef = useRef({})
+
+  const syncFiles = (map) => onImageFiles?.(map)
 
   const openAdd = () => {
     setEditingIndex(null)
     setForm({ name: '', price: '', mrp: '', stock: 0 })
     setAttributes([{ ...EMPTY_ATTRIBUTE }])
+    setImageFile(null)
+    setImagePreview('')
     setFormOpen(true)
   }
 
@@ -33,12 +45,22 @@ export default function VariantBuilder({ variants = [], onChange }) {
       value: String(value),
     }))
     setAttributes(pairs.length ? pairs : [{ ...EMPTY_ATTRIBUTE }])
+    setImageFile(null)
+    if (isRefObj(v.image) && fileMapRef.current[v.image.ref]) {
+      setImagePreview(fileMapRef.current[v.image.ref].preview || '')
+    } else if (v.image && typeof v.image === 'string') {
+      setImagePreview(v.image)
+    } else {
+      setImagePreview('')
+    }
     setFormOpen(true)
   }
 
   const closeForm = () => {
     setFormOpen(false)
     setEditingIndex(null)
+    setImageFile(null)
+    setImagePreview('')
   }
 
   const setAttr = (index, field, value) =>
@@ -51,11 +73,34 @@ export default function VariantBuilder({ variants = [], onChange }) {
       prev.length === 1 ? [{ ...EMPTY_ATTRIBUTE }] : prev.filter((_, i) => i !== index)
     )
 
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!form.name.trim()) {
       alert('Variant name is required')
       return
+    }
+    let image = null
+    if (editingIndex != null && variants[editingIndex]) {
+      const old = variants[editingIndex].image
+      if (typeof old === 'string') image = old
+      else if (isRefObj(old)) image = old
+    }
+    if (imageFile) {
+      const ref = `${REF_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      fileMapRef.current = {
+        ...fileMapRef.current,
+        [ref]: { file: imageFile, preview: imagePreview || URL.createObjectURL(imageFile) },
+      }
+      syncFiles(fileMapRef.current)
+      image = { ref }
     }
     const attrs = {}
     attributes.forEach((a) => {
@@ -67,6 +112,7 @@ export default function VariantBuilder({ variants = [], onChange }) {
       mrp: form.mrp !== '' ? form.mrp : null,
       stock: form.stock ?? 0,
       attributes: attrs,
+      image,
     }
     const next = [...variants]
     if (editingIndex != null) {
@@ -78,8 +124,21 @@ export default function VariantBuilder({ variants = [], onChange }) {
     closeForm()
   }
 
-  const removeVariant = (index) =>
+  const removeVariant = (index) => {
+    const v = variants[index]
+    if (isRefObj(v.image)) {
+      const { [v.image.ref]: _drop, ...rest } = fileMapRef.current
+      fileMapRef.current = rest
+      syncFiles(rest)
+    }
     onChange(variants.filter((_, i) => i !== index))
+  }
+
+  const variantPreview = (v) => {
+    if (typeof v.image === 'string') return v.image
+    if (isRefObj(v.image)) return fileMapRef.current[v.image.ref]?.preview || ''
+    return ''
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -117,9 +176,17 @@ export default function VariantBuilder({ variants = [], onChange }) {
               key={index}
               className="flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
             >
-              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-gray-300" />
-              </div>
+              {variantPreview(variant) ? (
+                <img
+                  src={variantPreview(variant)}
+                  alt={variant.name}
+                  className="w-12 h-12 rounded-lg object-cover border border-gray-100 flex-shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <Package className="w-5 h-5 text-gray-300" />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-900 text-sm truncate">
                   {variant.name}
@@ -305,6 +372,48 @@ export default function VariantBuilder({ variants = [], onChange }) {
                   placeholder="0"
                   className={inputClass}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Variant Image
+                </label>
+                <div className="flex items-center gap-4">
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt="Variant preview"
+                      className="w-16 h-16 rounded-xl object-cover border border-gray-100 flex-shrink-0"
+                    />
+                  )}
+                  <label className="flex-1 cursor-pointer">
+                    <div className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-primary rounded-xl p-4 text-center transition-colors">
+                      <Upload className="w-5 h-5 text-gray-300" />
+                      <span className="text-sm text-gray-500">
+                        {imagePreview ? 'Change image' : 'Upload image'}
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+                  </label>
+                  {imageFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageFile(null)
+                        setImagePreview('')
+                      }}
+                      className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Remove image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2">

@@ -3,31 +3,60 @@
  * Handles product images, KYC documents, etc.
  */
 
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const config = require('config');
-const sharp = require('sharp');
-const { v4: uuidv4 } = require('uuid');
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const config = require("config");
+const sharp = require("sharp");
+const { v4: uuidv4 } = require("uuid");
 
-const maxFileSize = config.get('app.maxFileSize');
-const uploadDir = config.get('app.uploadDir');
+const maxFileSize = config.get("app.maxFileSize");
+const maxVideoFileSize = config.get("app.maxVideoFileSize");
+const uploadDir = config.get("app.uploadDir");
 
 // Product image compression settings
 const PRODUCT_MAX_WIDTH = 1600;
 const PRODUCT_IMAGE_QUALITY = 80;
 
 // Allowed MIME types
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const ALLOWED_DOC_TYPES = [...ALLOWED_IMAGE_TYPES, 'application/pdf'];
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+];
+const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+  "video/x-m4v",
+];
+const ALLOWED_DOC_TYPES = [...ALLOWED_IMAGE_TYPES, "application/pdf"];
 
 /** Map a MIME type to a safe output file extension */
 const extForMime = (mime) => {
   switch (mime) {
-    case 'image/png': return '.png';
-    case 'image/webp': return '.webp';
-    case 'image/gif': return '.gif';
-    default: return '.jpg';
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    case "video/mp4":
+      return ".mp4";
+    case "video/webm":
+      return ".webm";
+    case "video/ogg":
+      return ".ogv";
+    case "video/quicktime":
+      return ".mov";
+    case "video/x-m4v":
+      return ".m4v";
+    default:
+      return ".jpg";
   }
 };
 
@@ -36,28 +65,34 @@ const extForMime = (mime) => {
  * Animated GIFs are stored as-is to preserve animation.
  */
 const compressImageToDisk = async (file) => {
-  const dest = path.join(process.cwd(), uploadDir, 'products');
+  const dest = path.join(process.cwd(), uploadDir, "products");
   await fs.promises.mkdir(dest, { recursive: true });
   const filename = `${uuidv4()}${extForMime(file.mimetype)}`;
   const outPath = path.join(dest, filename);
 
-  if (file.mimetype === 'image/gif') {
+  if (file.mimetype === "image/gif") {
     await fs.promises.writeFile(outPath, file.buffer);
   } else {
-    const meta = await sharp(file.buffer, { failOn: 'none' }).metadata();
-    let pipeline = sharp(file.buffer, { failOn: 'none' }).rotate();
+    const meta = await sharp(file.buffer, { failOn: "none" }).metadata();
+    let pipeline = sharp(file.buffer, { failOn: "none" }).rotate();
     if (meta.width && meta.width > PRODUCT_MAX_WIDTH) {
-      pipeline = pipeline.resize({ width: PRODUCT_MAX_WIDTH, withoutEnlargement: true });
+      pipeline = pipeline.resize({
+        width: PRODUCT_MAX_WIDTH,
+        withoutEnlargement: true,
+      });
     }
     switch (file.mimetype) {
-      case 'image/png':
+      case "image/png":
         pipeline = pipeline.png({ compressionLevel: 9 });
         break;
-      case 'image/webp':
+      case "image/webp":
         pipeline = pipeline.webp({ quality: PRODUCT_IMAGE_QUALITY });
         break;
       default:
-        pipeline = pipeline.jpeg({ quality: PRODUCT_IMAGE_QUALITY, mozjpeg: true });
+        pipeline = pipeline.jpeg({
+          quality: PRODUCT_IMAGE_QUALITY,
+          mozjpeg: true,
+        });
     }
     const buffer = await pipeline.toBuffer();
     await fs.promises.writeFile(outPath, buffer);
@@ -72,19 +107,20 @@ const compressImageToDisk = async (file) => {
 /**
  * Create disk storage with organized subdirectories
  */
-const createStorage = (subfolder) => multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dest = path.join(process.cwd(), uploadDir, subfolder);
-    fs.mkdirSync(dest, { recursive: true });
-    cb(null, dest);
-  },
-  filename: (req, file, cb) => {
-    let ext = path.extname(file.originalname).toLowerCase();
-    if (!ext) ext = extForMime(file.mimetype);
-    const filename = `${uuidv4()}${ext}`;
-    cb(null, filename);
-  },
-});
+const createStorage = (subfolder) =>
+  multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dest = path.join(process.cwd(), uploadDir, subfolder);
+      fs.mkdirSync(dest, { recursive: true });
+      cb(null, dest);
+    },
+    filename: (req, file, cb) => {
+      let ext = path.extname(file.originalname).toLowerCase();
+      if (!ext) ext = extForMime(file.mimetype);
+      const filename = `${uuidv4()}${ext}`;
+      cb(null, filename);
+    },
+  });
 
 /**
  * File filter factory
@@ -93,8 +129,8 @@ const createFilter = (allowedTypes) => (req, file, cb) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    const err = new multer.MulterError('LIMIT_UNEXPECTED_FILE');
-    err.message = `Only ${allowedTypes.join(', ')} are allowed`;
+    const err = new multer.MulterError("LIMIT_UNEXPECTED_FILE");
+    err.message = `Only ${allowedTypes.join(", ")} are allowed`;
     cb(err);
   }
 };
@@ -104,7 +140,7 @@ const uploadProductImagesMulter = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: maxFileSize },
   fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
-}).array('images', 10);
+}).array("images", 10);
 
 /**
  * Product image middleware: parse multipart, then compress every image and
@@ -121,9 +157,104 @@ const uploadProductImages = (req, res, next) => {
     } catch (err) {
       try {
         await Promise.all(
-          (req.files || []).filter((f) => f.path).map((f) => fs.promises.unlink(f.path))
+          (req.files || [])
+            .filter((f) => f.path)
+            .map((f) => fs.promises.unlink(f.path)),
         );
-      } catch (e) { /* cleanup best-effort */ }
+      } catch (e) {
+        /* cleanup best-effort */
+      }
+      next(err);
+    }
+  });
+};
+
+/**
+ * Combined product media uploader (create/update product):
+ * accepts up to 10 `images` (written to /uploads/products, compressed) and a
+ * single optional `video` (written to /uploads/videos untouched).
+ * multer writes directly to disk so large videos stay out of memory.
+ */
+const productMediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const subfolder = file.fieldname === "video" ? "videos" : "products";
+    const dest = path.join(process.cwd(), uploadDir, subfolder);
+    fs.mkdirSync(dest, { recursive: true });
+    cb(null, dest);
+  },
+  filename: (req, file, cb) => {
+    let ext = path.extname(file.originalname).toLowerCase();
+    if (!ext) ext = extForMime(file.mimetype);
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+
+/** Compress/resize an image that multer already wrote to disk (in place). */
+const compressStoredImage = async (file) => {
+  if (file.mimetype === "image/gif") return file; // animated GIFs stored as-is
+  const meta = await sharp(file.path, { failOn: "none" }).metadata();
+  let pipeline = sharp(file.path, { failOn: "none" }).rotate();
+  if (meta.width && meta.width > PRODUCT_MAX_WIDTH) {
+    pipeline = pipeline.resize({
+      width: PRODUCT_MAX_WIDTH,
+      withoutEnlargement: true,
+    });
+  }
+  switch (file.mimetype) {
+    case "image/png":
+      pipeline = pipeline.png({ compressionLevel: 9 });
+      break;
+    case "image/webp":
+      pipeline = pipeline.webp({ quality: PRODUCT_IMAGE_QUALITY });
+      break;
+    default:
+      pipeline = pipeline.jpeg({
+        quality: PRODUCT_IMAGE_QUALITY,
+        mozjpeg: true,
+      });
+  }
+  await fs.promises.writeFile(file.path, await pipeline.toBuffer());
+  return file;
+};
+
+const uploadProductMediaMulter = multer({
+  storage: productMediaStorage,
+  limits: { fileSize: maxVideoFileSize },
+  fileFilter: (req, file, cb) => {
+    const allowed =
+      file.fieldname === "video" ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
+    createFilter(allowed)(req, file, cb);
+  },
+}).fields([
+  { name: "images", maxCount: 10 },
+  { name: "image", maxCount: 1 },
+  { name: "video", maxCount: 1 },
+  { name: "variant_images", maxCount: 50 },
+]);
+
+const uploadProductMedia = (req, res, next) => {
+  uploadProductMediaMulter(req, res, async (err) => {
+    if (err) return next(err);
+    const imageFiles = [
+      ...(Array.isArray(req.files?.images) ? req.files.images : []),
+      ...(Array.isArray(req.files?.image) ? req.files.image : []),
+      ...(Array.isArray(req.files?.variant_images) ? req.files.variant_images : []),
+    ];
+    try {
+      await Promise.all(imageFiles.map(compressStoredImage));
+      next();
+    } catch (err) {
+      const allFiles = [
+        ...imageFiles,
+        ...(Array.isArray(req.files?.video) ? req.files.video : []),
+      ];
+      try {
+        await Promise.all(
+          allFiles.filter((f) => f.path).map((f) => fs.promises.unlink(f.path)),
+        );
+      } catch (e) {
+        /* cleanup best-effort */
+      }
       next(err);
     }
   });
@@ -131,72 +262,73 @@ const uploadProductImages = (req, res, next) => {
 
 /** Single avatar upload */
 const uploadAvatar = multer({
-  storage: createStorage('avatars'),
+  storage: createStorage("avatars"),
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
   fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
-}).single('avatar');
+}).single("avatar");
 
 /** KYC document upload */
 const uploadKYC = multer({
-  storage: createStorage('kyc'),
+  storage: createStorage("kyc"),
   limits: { fileSize: maxFileSize },
   fileFilter: createFilter(ALLOWED_DOC_TYPES),
 }).fields([
-  { name: 'gst_certificate', maxCount: 1 },
-  { name: 'pan_image', maxCount: 1 },
-  { name: 'aadhar_image_front', maxCount: 1 },
-  { name: 'aadhar_image_back', maxCount: 1 },
-  { name: 'passport_photo', maxCount: 1 },
-  { name: 'udyam_certificate', maxCount: 1 },
-  { name: 'bank_passbook', maxCount: 1 },
-  { name: 'cancelled_cheque', maxCount: 1 },
+  { name: "gst_certificate", maxCount: 1 },
+  { name: "pan_image", maxCount: 1 },
+  { name: "aadhar_image_front", maxCount: 1 },
+  { name: "aadhar_image_back", maxCount: 1 },
+  { name: "passport_photo", maxCount: 1 },
+  { name: "udyam_certificate", maxCount: 1 },
+  { name: "bank_passbook", maxCount: 1 },
+  { name: "cancelled_cheque", maxCount: 1 },
 ]);
 
 /** Banner upload */
 const uploadBanner = multer({
-  storage: createStorage('banners'),
+  storage: createStorage("banners"),
   limits: { fileSize: maxFileSize },
   fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
 }).fields([
-  { name: 'image', maxCount: 1 },
-  { name: 'mobile_image', maxCount: 1 },
+  { name: "image", maxCount: 1 },
+  { name: "mobile_image", maxCount: 1 },
 ]);
 
 /** Vendor store branding (logo + banner) upload */
 const uploadStoreBranding = multer({
-  storage: createStorage('stores'),
+  storage: createStorage("stores"),
   limits: { fileSize: maxFileSize },
   fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
 }).fields([
-  { name: 'logo', maxCount: 1 },
-  { name: 'banner', maxCount: 1 },
+  { name: "logo", maxCount: 1 },
+  { name: "banner", maxCount: 1 },
 ]);
 
 /** Review images */
 const uploadReviewImages = multer({
-  storage: createStorage('reviews'),
+  storage: createStorage("reviews"),
   limits: { fileSize: maxFileSize },
   fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
-}).array('images', 5);
+}).array("images", 5);
 
 /**
  * Generic single-image uploader that stores into an arbitrary subfolder.
  * Accepts a single file under the `images` field name (matches the admin
  * ImageUpload component) and writes it as-is (no compression).
  */
-const createGenericImageUploader = (subfolder) => handleUpload(
-  multer({
-    storage: createStorage(subfolder),
-    limits: { fileSize: maxFileSize },
-    fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
-  }).array('images', 1)
-);
+const createGenericImageUploader = (subfolder) =>
+  handleUpload(
+    multer({
+      storage: createStorage(subfolder),
+      limits: { fileSize: maxFileSize },
+      fileFilter: createFilter(ALLOWED_IMAGE_TYPES),
+    }).array("images", 1),
+  );
 
 /**
  * Encrypt KYC file on disk after multer saves it
  */
 function encryptKYCFile(filePath) {
-  const { encrypt } = require('../utils/encryption.util');
+  const { encrypt } = require("../utils/encryption.util");
   const buffer = fs.readFileSync(filePath);
   const encrypted = encrypt(buffer);
   fs.writeFileSync(filePath, encrypted);
@@ -213,7 +345,11 @@ const handleUpload = (uploadFn, encryptAfter) => (req, res, next) => {
     if (encryptAfter && req.files) {
       for (const field of Object.values(req.files)) {
         for (const file of field) {
-          try { encryptKYCFile(file.path); } catch (e) { /* ignore */ }
+          try {
+            encryptKYCFile(file.path);
+          } catch (e) {
+            /* ignore */
+          }
         }
       }
     }
@@ -223,6 +359,7 @@ const handleUpload = (uploadFn, encryptAfter) => (req, res, next) => {
 
 module.exports = {
   uploadProductImages,
+  uploadProductMedia,
   uploadAvatar: handleUpload(uploadAvatar),
   uploadKYC: handleUpload(uploadKYC, true),
   uploadBanner: handleUpload(uploadBanner),

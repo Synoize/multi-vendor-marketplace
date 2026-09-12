@@ -12,6 +12,8 @@ const router = express.Router();
 // ─── Public ───────────────────────────────────────────────────────────────────
 router.get('/active', rateLimit('read'), offerController.getActiveOffers);
 
+router.get('/:id/products', rateLimit('read'), offerController.getOfferProducts);
+
 router.post('/validate', protect, rateLimit('coupon'), offerController.validateOffer);
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

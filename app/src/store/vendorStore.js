@@ -6,6 +6,18 @@ export const useVendorStore = create((set, get) => ({
   emailVerified: false,
   otpLoading: false,
 
+  restoreEmailVerification: async () => {
+    try {
+      const { data } = await api.get('/vendors/kyc')
+      const vendor = data?.data
+      if (vendor?.business_email_verified) {
+        set({ emailVerified: true })
+      }
+    } catch {
+      // ignore — user may not have a vendor record yet
+    }
+  },
+
   sendBusinessOtp: async (businessEmail) => {
     set({ otpLoading: true })
     try {
@@ -36,11 +48,21 @@ export const useVendorStore = create((set, get) => ({
     set({ loading: true })
     try {
       await api.post('/vendors/kyc', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
       })
       return { success: true }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Submission failed' }
+      const msg = err.response?.data?.message
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        return { success: false, message: 'Upload timed out. Please compress your files and try again.' }
+      }
+      if (!err.response) {
+        return { success: false, message: 'Network error. Please check your connection and try again.' }
+      }
+      if (msg && /size|large|limit|exceeds/i.test(msg)) {
+        return { success: false, message: msg }
+      }
+      return { success: false, message: msg || 'Submission failed. Please try again.' }
     } finally {
       set({ loading: false })
     }

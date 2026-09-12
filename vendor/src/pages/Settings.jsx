@@ -4,6 +4,7 @@ import { useVendorStore } from "../store/vendorStore";
 import { toast } from "sonner";
 import Spinner from "../components/ui/Spinner";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import api from "../lib/axios";
 import {
   Store,
   Building2,
@@ -17,6 +18,7 @@ import {
   UploadCloud,
   ImagePlus,
   X,
+  Loader2,
 } from "lucide-react";
 
 const TABS = [
@@ -250,6 +252,28 @@ export default function Settings() {
 
   const handleFieldChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const [pickupPincodeLoading, setPickupPincodeLoading] = useState(false);
+
+  const lookupPickupPincode = async (code) => {
+    const c = (code ?? "").trim();
+    if (!/^\d{6}$/.test(c)) return;
+    setPickupPincodeLoading(true);
+    try {
+      const { data } = await api.get("/products/pincode-lookup", {
+        params: { pincode: c },
+      });
+      const info = data?.data;
+      if (info) {
+        handleFieldChange("pickup_city", info.city || "");
+        handleFieldChange("pickup_state", info.state || "");
+      }
+    } catch {
+      // ignore - user can type city/state manually
+    } finally {
+      setPickupPincodeLoading(false);
+    }
   };
 
   const invalidateAll = () => {
@@ -677,7 +701,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    GST Number
+                    GST Number *
                   </label>
                   <input
                     type="text"
@@ -686,6 +710,7 @@ export default function Settings() {
                       handleFieldChange("gst_number", e.target.value.toUpperCase())
                     }
                     maxLength={15}
+                    placeholder="15-digit GSTIN"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary font-mono"
                   />
                 </div>
@@ -865,6 +890,7 @@ export default function Settings() {
                     onChange={(e) =>
                       handleFieldChange("pickup_phone", e.target.value)
                     }
+                    maxLength={10}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   />
                 </div>
@@ -927,19 +953,25 @@ export default function Settings() {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Pincode *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    value={formData.pickup_pincode}
-                    onChange={(e) =>
-                      handleFieldChange(
-                        "pickup_pincode",
-                        e.target.value.replace(/\D/g, ""),
-                      )
-                    }
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={formData.pickup_pincode}
+                      onChange={(e) => {
+                        const val = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6);
+                        handleFieldChange("pickup_pincode", val);
+                        if (val.length === 6) lookupPickupPincode(val);
+                      }}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    />
+                    {pickupPincodeLoading && (
+                      <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 animate-spin" />
+                    )}
+                  </div>
                 </div>
               </div>
               <button

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../lib/axios";
 import { toast } from "sonner";
@@ -28,7 +28,27 @@ const emptyForm = {
   icon: "",
   banner: "",
   sort_order: "0",
+  gst_rate: "18",
 };
+
+/**
+ * Flatten a nested category tree (any depth) into a single list where every
+ * entry carries its nesting depth, its ancestor names, and its parent node.
+ */
+const flattenTree = (nodes, depth = 0, ancestors = []) =>
+  nodes.flatMap((node) => [
+    {
+      ...node,
+      __depth: depth,
+      __ancestors: ancestors,
+      __parent: ancestors[ancestors.length - 1] || null,
+      __path: [...ancestors, node.name].join(" > "),
+    },
+    ...flattenTree(node.children || [], depth + 1, [...ancestors, node.name]),
+  ]);
+
+const levelLabel = (depth) =>
+  depth === 0 ? null : depth === 1 ? "Sub-category" : `Level ${depth + 1}`;
 
 export default function Categories() {
   const queryClient = useQueryClient();
@@ -44,13 +64,27 @@ export default function Categories() {
     },
   });
 
-  const flatCategories = categories.flatMap((parent) => [
-    parent,
-    ...(parent.children || []).map((child) => ({
-      ...child,
-      __parent: parent,
-    })),
-  ]);
+  const flatCategories = flattenTree(categories);
+
+  // Category ids that must be hidden as a parent option: itself + its
+  // descendants (prevents creating cycles).
+  const selfAndDescendantIds = useMemo(() => {
+    const ids = new Set();
+    if (!form.id) return ids;
+    const walk = (nodes) => {
+      nodes.forEach((n) => {
+        ids.add(String(n.id));
+        walk(n.children || []);
+      });
+    };
+    const node = categories.find((c) => String(c.id) === String(form.id));
+    if (node) walk([node]);
+    return ids;
+  }, [categories, form.id]);
+
+  const parentOptions = flatCategories.filter(
+    (c) => !selfAndDescendantIds.has(String(c.id)),
+  );
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["admin-categories"] });
@@ -104,6 +138,8 @@ export default function Categories() {
       icon: cat.icon || "",
       banner: cat.banner || "",
       sort_order: cat.sort_order != null ? String(cat.sort_order) : "0",
+      gst_rate:
+        cat.gst_rate != null ? String(cat.gst_rate) : "18",
     });
     setShowModal(true);
   };
@@ -118,6 +154,10 @@ export default function Categories() {
       ...form,
       parent_id: form.parent_id ? Number(form.parent_id) : null,
       sort_order: parseInt(form.sort_order || "0", 10) || 0,
+      gst_rate: Math.min(
+        Math.max(parseFloat(form.gst_rate) || 0, 0),
+        100,
+      ),
     });
   };
 
@@ -126,11 +166,12 @@ export default function Categories() {
   };
 
   const handleExport = (filteredData) => {
-    const headers = ["Name", "Parent", "Slug", "Sort Order", "Status"];
+    const headers = ["Name", "Parent", "Slug", "GST %", "Sort Order", "Status"];
     const rows = filteredData.map((cat) => [
       cat.name,
       cat.__parent ? cat.__parent.name : "",
       cat.slug,
+      cat.gst_rate != null ? `${Number(cat.gst_rate)}` : "18",
       cat.sort_order,
       cat.is_active ? "Active" : "Inactive",
     ]);
@@ -146,8 +187,6 @@ export default function Categories() {
     URL.revokeObjectURL(url);
   };
 
-  const parentOptions = categories.filter((c) => c.id !== form.id);
-
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const columns = [
@@ -156,7 +195,8 @@ export default function Categories() {
       label: "Name",
       render: (value, cat) => (
         <div
-          className={`flex items-center gap-2.5 ${cat.__parent ? "pl-6" : ""}`}
+          className="flex items-center gap-2.5"
+          style={{ paddingLeft: `${cat.__depth * 24}px` }}
         >
           {cat.image || cat.icon ? (
             <img
@@ -173,9 +213,12 @@ export default function Categories() {
             <Folder className="h-4 w-4 text-red-500" />
           )}
           <span className="font-medium text-gray-900">{cat.name}</span>
-          {cat.__parent && (
-            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-              Sub-category
+          {cat.__depth > 0 && (
+            <span
+              className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded"
+              title={cat.__path}
+            >
+              {levelLabel(cat.__depth)}
             </span>
           )}
         </div>
@@ -186,7 +229,7 @@ export default function Categories() {
       label: "Parent",
       sortable: false,
       render: (value, cat) => (
-        <span className="text-gray-500">
+        <span className="text-gray-500" title={cat.__path}>
           {cat.__parent ? cat.__parent.name : "—"}
         </span>
       ),
@@ -195,6 +238,15 @@ export default function Categories() {
       key: "slug",
       label: "Slug",
       render: (value) => <span className="text-gray-500">{value}</span>,
+    },
+    {
+      key: "gst_rate",
+      label: "GST",
+      render: (value) => (
+        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary-50 text-primary px-2 py-1 rounded border border-primary-100">
+          {value != null ? `${Number(value)}%` : "18%"}
+        </span>
+      ),
     },
     {
       key: "sort_order",
@@ -265,11 +317,8 @@ export default function Categories() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            Category Management
+            Categories
           </h1>
-          <p className="text-gray-500 text-sm">
-            Organize the store catalog — vendors pick categories from this list
-          </p>
         </div>
         <button
           onClick={openAdd}
@@ -287,7 +336,7 @@ export default function Categories() {
         <EmptyState
           icon={<FolderTree className="h-10 w-10 text-gray-400" />}
           title="No categories"
-          description="Create your first category to start organizing products."
+          description="Add your first category."
         />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -338,11 +387,14 @@ export default function Categories() {
               >
                 <option value="">— None (Top level) —</option>
                 {parentOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+                  <option key={c.id} value={c.id} title={c.__path}>
+                    {`${"— ".repeat(c.__depth)}${c.name}`}
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Nest at any depth
+              </p>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -357,16 +409,35 @@ export default function Categories() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              GST Rate (%) *
+            </label>
+            <input
+              type="number"
+              required
+              min="0"
+              max="100"
+              step="0.01"
+              value={form.gst_rate}
+              onChange={set("gst_rate")}
+              className="w-full bg-secondary border rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-secondary-600 outline-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Deducted from vendor payout
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ImageUpload
-              label="Category Icon (small — category menus & home)"
+              label="Icon (menus & home)"
               value={form.icon}
               uploadPath="category"
               onChange={(url) => setForm((f) => ({ ...f, icon: url }))}
             />
 
             <ImageUpload
-              label="Category Image (sub-category thumbnails)"
+              label="Image (thumbnails)"
               value={form.image}
               uploadPath="category"
               onChange={(url) => setForm((f) => ({ ...f, image: url }))}
@@ -374,7 +445,7 @@ export default function Categories() {
           </div>
 
           <ImageUpload
-            label="Category Banner (shown when user clicks this category)"
+            label="Banner (category page)"
             value={form.banner}
             uploadPath="banner"
             onChange={(url) => setForm((f) => ({ ...f, banner: url }))}
@@ -386,7 +457,7 @@ export default function Categories() {
             </label>
             <textarea
               rows={3}
-              placeholder="Short description of this category"
+              placeholder="Optional"
               value={form.description}
               onChange={set("description")}
               className="w-full bg-secondary border rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-secondary-600 outline-none resize-none"
@@ -425,7 +496,7 @@ export default function Categories() {
         }}
         loading={deleteMutation.isPending}
         title="Deactivate Category"
-        message={`Are you sure you want to deactivate "${deleteTarget?.name}"? It will no longer appear in vendor listings.`}
+        message={`Deactivate "${deleteTarget?.name}"?`}
         confirmLabel="Deactivate"
         variant="danger"
       />

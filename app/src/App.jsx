@@ -36,6 +36,8 @@ const Faq = lazy(() => import("@/pages/Faq"));
 const Security = lazy(() => import("@/pages/Security"));
 const Sitemap = lazy(() => import("@/pages/Sitemap"));
 const Advertise = lazy(() => import("@/pages/Advertise"));
+const Docs = lazy(() => import("@/pages/Docs"));
+const OfferProducts = lazy(() => import("@/pages/OfferProducts"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 // Protected Route
@@ -103,6 +105,8 @@ export default function App() {
             <Route path="/security" element={<Security />} />
             <Route path="/sitemap" element={<Sitemap />} />
             <Route path="/advertise" element={<Advertise />} />
+            <Route path="/docs" element={<Docs />} />
+            <Route path="/offers/:id" element={<OfferProducts />} />
 
             {/* Protected customer routes */}
             <Route

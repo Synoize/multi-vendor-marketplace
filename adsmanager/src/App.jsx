@@ -13,6 +13,7 @@ const CampaignCreate = lazy(() => import('./pages/CampaignCreate'))
 const CampaignDetail = lazy(() => import('./pages/CampaignDetail'))
 const Billing = lazy(() => import('./pages/Billing'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Docs = lazy(() => import('./pages/Docs'))
 
 function PageLoader() {
   return (
@@ -91,6 +92,7 @@ function App() {
           <Route path="campaigns/:id" element={<CampaignDetail />} />
           <Route path="billing" element={<Billing />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="docs" element={<Docs />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

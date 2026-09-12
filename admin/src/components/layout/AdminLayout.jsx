@@ -28,6 +28,7 @@ import {
   X,
   ChevronDown,
   AlertCircle,
+  BookOpen,
 } from "lucide-react";
 import useAuthStore from "../../store/authStore";
 import api from "../../lib/axios";
@@ -86,6 +87,7 @@ const navSections = [
     items: [
       { label: "Support", path: "/support", icon: HeadphonesIcon },
       { label: "Settings", path: "/settings", icon: Settings },
+      { label: "Documentation", path: "/docs", icon: BookOpen },
     ],
   },
 ];

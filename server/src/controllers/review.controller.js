@@ -14,6 +14,9 @@ const createReview = asyncHandler(async (req, res) => {
   const { productId } = req.params;
   const userId = req.user.id;
   const images = req.files?.map(f => `/uploads/reviews/${f.filename}`) || [];
+  if (images.length === 0) {
+    return sendError(res, 'At least one photo is required for a review', 400);
+  }
   const body = { ...req.body, rating: Number(req.body.rating), images: images.length > 0 ? images : undefined };
   await reviewService.createReview(userId, productId, body);
   sendCreated(res, null, 'Review submitted successfully');
@@ -43,4 +46,15 @@ const deleteReview = asyncHandler(async (req, res) => {
   sendSuccess(res, null, 'Review deleted successfully');
 });
 
-module.exports = { createReview, getProductReviews, deleteReview };
+/**
+ * GET /reviews/eligibility/:productId
+ * Check if the logged-in user can review this product
+ */
+const checkReviewEligibility = asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const userId = req.user.id;
+  const data = await reviewService.checkReviewEligibility(userId, productId);
+  sendSuccess(res, data);
+});
+
+module.exports = { createReview, getProductReviews, deleteReview, checkReviewEligibility };

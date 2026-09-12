@@ -14,6 +14,34 @@ const logger = require('../utils/logger.util');
 const BCRYPT_ROUNDS = config.get('bcrypt.rounds');
 const OTP_EXPIRY_SEC = config.get('otp.expiry');
 
+/** Generate a referral code guaranteed unique in the DB (retries up to 10 times). */
+const generateUniqueReferralCode = async () => {
+  for (let i = 0; i < 10; i++) {
+    const code = generateReferralCode();
+    const exists = await queryOne('SELECT 1 FROM users WHERE referral_code = ?', [code]);
+    if (!exists) return code;
+  }
+  throw new Error('Failed to generate a unique referral code after 10 attempts');
+};
+
+/**
+ * Validate a referral code and return the referrer's public info.
+ * Returns null if the code is invalid/does not exist.
+ */
+const validateReferralCode = async (referralCode) => {
+  if (!referralCode || !String(referralCode).trim()) {
+    return null;
+  }
+  const code = String(referralCode).trim().toUpperCase();
+  if (code.length < 3 || code.length > 20) return null;
+  const referrer = await queryOne(
+    'SELECT id, name, referral_code FROM users WHERE referral_code = ? AND is_active = 1',
+    [code]
+  );
+  if (!referrer) return null;
+  return { id: referrer.id, name: referrer.name, referralCode: referrer.referral_code };
+};
+
 // Parse expiry string to ms for refresh_tokens.expires_at
 const expiryToMs = (expiry) => {
   const match = expiry.match(/^(\d+)([smhd])$/);
@@ -41,13 +69,14 @@ const registerUser = async ({ name, email, phone, password, referralCode }) => {
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const myReferralCode = generateReferralCode();
+  const myReferralCode = await generateUniqueReferralCode();
   const otp = generateOTP(6);
   const otpExpires = new Date(Date.now() + OTP_EXPIRY_SEC * 1000);
 
   let referrerId = null;
-  if (referralCode) {
-    const referrer = await queryOne('SELECT id FROM users WHERE referral_code = ?', [referralCode]);
+  if (referralCode && String(referralCode).trim()) {
+    const code = String(referralCode).trim().toUpperCase();
+    const referrer = await queryOne('SELECT id FROM users WHERE referral_code = ?', [code]);
     if (referrer) referrerId = referrer.id;
   }
 
@@ -152,11 +181,12 @@ const loginUser = async (email, password, referralCode) => {
     // Automatically register new user for passwordless
     const name = email.split('@')[0];
     const passwordHash = await bcrypt.hash(Math.random().toString(36), BCRYPT_ROUNDS);
-    const myReferralCode = generateReferralCode();
+    const myReferralCode = await generateUniqueReferralCode();
 
     let referrerId = null;
-    if (referralCode) {
-      const referrer = await queryOne('SELECT id FROM users WHERE referral_code = ? AND id != (SELECT id FROM users WHERE email = ?)', [referralCode, email]);
+    if (referralCode && String(referralCode).trim()) {
+      const code = String(referralCode).trim().toUpperCase();
+      const referrer = await queryOne('SELECT id FROM users WHERE referral_code = ?', [code]);
       if (!referrer) {
         throw Object.assign(new Error('Invalid referral code'), { statusCode: 400 });
       }
@@ -454,4 +484,4 @@ const resendOTP = async (email) => {
   return { message: 'New OTP sent to your email.' };
 };
 
-module.exports = { registerUser, verifyEmail, loginUser, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refreshAccessToken, logoutUser, resendOTP };
+module.exports = { registerUser, verifyEmail, loginUser, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refreshAccessToken, logoutUser, resendOTP, validateReferralCode };

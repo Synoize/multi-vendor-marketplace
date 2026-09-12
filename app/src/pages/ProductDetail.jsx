@@ -25,6 +25,8 @@ import {
   PenLine,
   ImagePlus,
   Heart,
+  Play,
+  PackageX,
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
@@ -39,6 +41,33 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/free-mode";
+import { getVideoEmbedUrl } from "@/lib/video";
+
+function ProductVideo({ url, className = "" }) {
+  const embedUrl = getVideoEmbedUrl(url);
+  if (embedUrl) {
+    return (
+      <iframe
+        src={embedUrl}
+        title="Product video"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        className={className}
+      />
+    );
+  }
+  return (
+    <video
+      src={url}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      className={`${className} bg-black`}
+    />
+  );
+}
 
 function RatingBar({ stars, percent }) {
   return (
@@ -124,6 +153,14 @@ export default function ProductDetail() {
     enabled: !!product?.id,
   });
 
+  const { data: reviewEligibility, isLoading: isEligibilityLoading } = useQuery(
+    {
+      queryKey: ["review-eligibility", product?.id],
+      queryFn: () => useReviewStore.getState().checkEligibility(product.id),
+      enabled: !!product?.id && isAuthenticated,
+    },
+  );
+
   const handleAddToCart = async () => {
     if (!isAuthenticated) {
       toast.error("Please login to add to cart");
@@ -200,10 +237,21 @@ export default function ProductDetail() {
       toast.error("Please select a rating");
       return;
     }
+    if (reviewImages.length === 0) {
+      toast.error("Please add at least one photo to your review");
+      return;
+    }
+    if (!isEligibilityLoading && !reviewEligibility?.canReview) {
+      toast.error("Only customers who purchased this product can review it.");
+      setReviewOpen(false);
+      return;
+    }
     setReviewSubmitting(true);
     try {
       const formData = new FormData();
       formData.append("rating", reviewRating);
+      if (reviewEligibility?.orderItemId)
+        formData.append("orderItemId", reviewEligibility.orderItemId);
       if (reviewTitle.trim()) formData.append("title", reviewTitle.trim());
       if (reviewComment.trim())
         formData.append("comment", reviewComment.trim());
@@ -226,11 +274,35 @@ export default function ProductDetail() {
       setReviewImages([]);
       setReviewPreviews([]);
       queryClient.invalidateQueries({ queryKey: ["reviews", product.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["review-eligibility", product.id],
+      });
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit review");
     } finally {
       setReviewSubmitting(false);
     }
+  };
+
+  const handleToggleReview = () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (reviewOpen) {
+      setReviewOpen(false);
+      setReviewRating(0);
+      setReviewTitle("");
+      setReviewComment("");
+      setReviewImages([]);
+      setReviewPreviews([]);
+      return;
+    }
+    if (!isEligibilityLoading && !reviewEligibility?.canReview) {
+      toast.error("Only customers who purchased this product can review it.");
+      return;
+    }
+    setReviewOpen(true);
   };
 
   const handleReviewImageSelect = (e) => {
@@ -274,7 +346,10 @@ export default function ProductDetail() {
         place: [result.city, result.state].filter(Boolean).join(", "),
       });
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Could not check delivery. Please try again.");
+      toast.error(
+        err?.response?.data?.message ||
+          "Could not check delivery. Please try again.",
+      );
     } finally {
       setCheckingPincode(false);
     }
@@ -302,9 +377,14 @@ export default function ProductDetail() {
       : null;
   const images = product?.images || [];
   const variantImage = selectedVariant?.image || null;
+  const hasVideo = !!(product?.video_url && String(product?.video_url).trim());
+  const mediaOffset = hasVideo ? 1 : 0;
+  const mediaCount = images.length + mediaOffset;
+  const videoThumb =
+    hasVideo && !getVideoEmbedUrl(product.video_url) ? product.video_url : null;
   const activeImageUrl =
     variantImage ||
-    images[activeImage]?.url ||
+    images[activeImage - mediaOffset]?.url ||
     product?.primary_image ||
     `https://picsum.photos/seed/${slug}/600/600`;
 
@@ -633,7 +713,7 @@ export default function ProductDetail() {
                   className="w-full h-full object-contain rounded-md"
                 />
               </div>
-            ) : images.length > 1 ? (
+            ) : mediaCount > 1 ? (
               <div
                 ref={imageRef}
                 onScroll={handleImageScroll}
@@ -644,18 +724,36 @@ export default function ProductDetail() {
                   WebkitOverflowScrolling: "touch",
                 }}
               >
-                {images.map((img, i) => (
-                  <div
-                    key={i}
-                    className="min-w-full snap-center aspect-square flex items-center justify-center bg-white p-3"
-                  >
-                    <img
-                      src={img.url}
-                      alt={`${product.name} ${i + 1}`}
-                      className="w-full h-full object-contain rounded-md"
+                {hasVideo && (
+                  <div className="min-w-full snap-center aspect-square flex items-center justify-center bg-black p-0 overflow-hidden">
+                    <ProductVideo
+                      url={product.video_url}
+                      className="w-full h-full object-contain"
                     />
                   </div>
-                ))}
+                )}
+                {images.map((img, i) => {
+                  const mediaIndex = mediaOffset + i;
+                  return (
+                    <div
+                      key={mediaIndex}
+                      className="min-w-full snap-center aspect-square flex items-center justify-center bg-white p-3"
+                    >
+                      <img
+                        src={img.url}
+                        alt={`${product.name} ${i + 1}`}
+                        className="w-full h-full object-contain rounded-md"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : hasVideo ? (
+              <div className="aspect-square flex items-center justify-center bg-black p-0 overflow-hidden">
+                <ProductVideo
+                  url={product.video_url}
+                  className="w-full h-full object-contain"
+                />
               </div>
             ) : (
               <div className="aspect-square flex items-center justify-center bg-white p-3">
@@ -668,9 +766,9 @@ export default function ProductDetail() {
             )}
 
             {/* Slider Dots */}
-            {!variantImage && images.length > 1 && (
+            {!variantImage && mediaCount > 1 && (
               <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5">
-                {images.map((_, i) => (
+                {Array.from({ length: mediaCount }).map((_, i) => (
                   <span
                     key={i}
                     className={`rounded-full transition-all duration-300 ${
@@ -685,24 +783,48 @@ export default function ProductDetail() {
           </div>
 
           {/* Thumbnails */}
-          {!variantImage && images.length > 1 && (
+          {!variantImage && mediaCount > 1 && (
             <div className="mt-1 px-3 pb-2">
               <div className="flex gap-2.5 overflow-x-auto scrollbar-hide">
-                {images.map((img, i) => (
+                {hasVideo && (
                   <button
-                    key={i}
-                    onClick={() => goToImage(i)}
-                    className={`flex-shrink-0 h-16 w-16 rounded-md overflow-hidden border transition-all ${
-                      activeImage === i && "border-secondary-600"
+                    onClick={() => goToImage(0)}
+                    className={`flex-shrink-0 h-16 w-16 rounded-md overflow-hidden border transition-all bg-black relative ${
+                      activeImage === 0 && "border-secondary-600"
                     }`}
                   >
-                    <img
-                      src={img.url}
-                      alt={`${product.name} ${i + 1}`}
-                      className="w-full h-full object-contain"
-                    />
+                    {videoThumb ? (
+                      <video
+                        src={product.video_url}
+                        muted
+                        preload="metadata"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <span className="flex items-center justify-center w-full h-full text-white">
+                        <Play className="w-5 h-5 fill-current" />
+                      </span>
+                    )}
                   </button>
-                ))}
+                )}
+                {images.map((img, i) => {
+                  const mediaIndex = mediaOffset + i;
+                  return (
+                    <button
+                      key={mediaIndex}
+                      onClick={() => goToImage(mediaIndex)}
+                      className={`flex-shrink-0 h-16 w-16 rounded-md overflow-hidden border transition-all ${
+                        activeImage === mediaIndex && "border-secondary-600"
+                      }`}
+                    >
+                      <img
+                        src={img.url}
+                        alt={`${product.name} ${i + 1}`}
+                        className="w-full h-full object-contain"
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -929,7 +1051,7 @@ export default function ProductDetail() {
                 <p className="text-[10px] text-secondary-700">Above ₹499</p>
               </div>
             </div>
-            {product.is_returnable && (
+            {product.is_returnable && product.return_window > 0 ? (
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <RotateCcw
                   strokeWidth={1.5}
@@ -941,6 +1063,21 @@ export default function ProductDetail() {
                   </p>
                   <p className="text-[10px] text-secondary-700">
                     {product.return_type?.replace("_", " ")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <PackageX
+                  strokeWidth={1.5}
+                  className="h-4 w-4 text-red-500"
+                />
+                <div>
+                  <p className="text-[11px] font-semibold text-secondary-900">
+                    No Returns
+                  </p>
+                  <p className="text-[10px] text-secondary-700">
+                    Non-returnable item
                   </p>
                 </div>
               </div>
@@ -1135,13 +1272,7 @@ export default function ProductDetail() {
           className={`bg-white ${reviewData?.reviews?.length === 0 && "border-b border-secondary-200"}`}
         >
           <button
-            onClick={() => {
-              if (!isAuthenticated) {
-                navigate("/login");
-                return;
-              }
-              setReviewOpen(!reviewOpen);
-            }}
+            onClick={handleToggleReview}
             className="w-full px-3 py-3 flex items-center justify-between "
           >
             <div className="flex items-center justify-between gap-2">
@@ -1223,7 +1354,7 @@ export default function ProductDetail() {
                   className="flex items-center gap-1.5 text-xs text-primary border rounded px-3 py-2 hover:bg-secondary transition-colors disabled:opacity-40"
                 >
                   <ImagePlus strokeWidth={1.5} className="h-4 w-4" />
-                  Add Photos ({reviewImages.length}/5)
+                  Add Photos ({reviewImages.length}/5) *
                 </button>
               </div>
               {reviewPreviews.length > 0 && (
@@ -1250,7 +1381,11 @@ export default function ProductDetail() {
               )}
               <button
                 onClick={handleSubmitReview}
-                disabled={reviewSubmitting || reviewRating === 0}
+                disabled={
+                  reviewSubmitting ||
+                  reviewRating === 0 ||
+                  reviewImages.length === 0
+                }
                 className="w-full bg-primary text-white py-2.5 rounded-lg text-xs disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {reviewSubmitting ? "Submitting..." : "Submit Review"}
@@ -1262,64 +1397,42 @@ export default function ProductDetail() {
           {reviewData?.reviews?.length > 0 && (
             <div className="bg-white px-4 py-3 pt-0">
               <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-hide">
-                {reviewData.reviews.slice(0, 3).map((r) => (
-                  <div key={r.id} className="bg-white pt-3">
-                    <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-hide">
-                      {reviewData.reviews.slice(0, 6).map((r) => (
-                        <div key={r.id} className="w-24 aspect-square shrink-0">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="bg-green-600 text-white text-[10px] px-1 py-0.5 rounded font-bold whitespace-nowrap">
-                              {r.rating} ★
-                            </span>
+                {reviewData.reviews.slice(0, 6).map((r) => (
+                  <div key={r.id} className="w-24 aspect-square shrink-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="bg-green-600 text-white text-[10px] px-1 py-0.5 rounded font-bold whitespace-nowrap">
+                        {r.rating} ★
+                      </span>
 
-                            <div className="flex items-start justify-between gap-2 w-full">
-                              {/* <span className="flex-1 text-sm text-secondary-950 font-medium line-clamp-1 leading-3">
-                                {r.title}
-                              </span> */}
-
-                              {r.is_verified === 0 && (
-                                <span className="shrink-0 text-primary text-[10px] font-medium whitespace-nowrap">
-                                  ✓ Verified
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {r.images?.length > 0 && (
-                            <button
-                              onClick={() => {
-                                setDrawerReview(r);
-                                setDrawerImgIdx(0);
-                              }}
-                              className="relative mt-1.5 border"
-                            >
-                              <img
-                                src={r.images[0]}
-                                alt="review"
-                                className="h-32 w-24 rounded-md object-contain "
-                              />
-                              {r.images.length > 1 && (
-                                <span className="absolute z-20 bottom-1 right-2 p-1 text-xs font-medium text-secondary-800">
-                                  +{r.images.length - 1}
-                                </span>
-                              )}
-                            </button>
-                          )}
-
-                          {/* <p className="mt-2 text-xs text-secondary-900 line-clamp-2">
-                        {r.comment}
-                      </p> */}
-
-                          {/* <p className="mt-auto pt-2 text-[9px] text-secondary-700">
-                      {r.reviewer_name?.split(" ")[0]} ·{" "}
-                      {new Date(r.created_at).toLocaleDateString("en-IN", {
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </p> */}
-                        </div>
-                      ))}
+                      <div className="flex items-start justify-between gap-2 w-full">
+                        {r.is_verified === 1 && (
+                          <span className="shrink-0 text-primary text-[10px] font-medium whitespace-nowrap">
+                            ✓ Verified
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {r.images?.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setDrawerReview(r);
+                          setDrawerImgIdx(0);
+                        }}
+                        className="relative mt-1.5 border"
+                      >
+                        <img
+                          src={r.images[0]}
+                          alt="review"
+                          className="h-32 w-24 rounded-md object-contain "
+                        />
+                        {r.images.length > 1 && (
+                          <span className="absolute z-20 bottom-1 right-2 p-1 text-xs font-medium text-secondary-800">
+                            +{r.images.length - 1}
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1379,12 +1492,19 @@ export default function ProductDetail() {
             <div className="">
               <div className="bg-white sticky top-20">
                 <div className="relative aspect-square mb-3 flex items-center justify-center bg-secondary rounded overflow-hidden">
-                  <img
-                    src={activeImageUrl}
-                    alt={product.name}
-                    className="max-w-full max-h-full object-contain rounded hover:scale-105 transition-transform duration-300 cursor-zoom-in"
-                    style={{ maxHeight: "450px" }}
-                  />
+                  {!variantImage && hasVideo && activeImage === 0 ? (
+                    <ProductVideo
+                      url={product.video_url}
+                      className="absolute inset-0 w-full h-full"
+                    />
+                  ) : (
+                    <img
+                      src={activeImageUrl}
+                      alt={product.name}
+                      className="max-w-full max-h-full object-contain rounded hover:scale-105 transition-transform duration-300 cursor-zoom-in"
+                      style={{ maxHeight: "450px" }}
+                    />
+                  )}
                   <button
                     onClick={handleWishlist}
                     title={
@@ -1419,21 +1539,43 @@ export default function ProductDetail() {
                     </div>
                   </button>
                 </div>
-                {!variantImage && images.length > 1 && (
+                {!variantImage && mediaCount > 1 && (
                   <div className="flex gap-2.5 overflow-x-auto pb-1">
-                    {images.map((img, i) => (
+                    {hasVideo && (
                       <button
-                        key={i}
-                        onClick={() => setActiveImage(i)}
-                        className={`flex-shrink-0 w-20 h-20 border rounded overflow-hidden ${activeImage === i && "border-secondary-600"}`}
+                        onClick={() => setActiveImage(0)}
+                        className={`flex-shrink-0 w-20 h-20 border rounded overflow-hidden bg-black ${activeImage === 0 && "border-secondary-600"}`}
                       >
-                        <img
-                          src={img.url}
-                          alt=""
-                          className="w-full h-full object-contain"
-                        />
+                        {videoThumb ? (
+                          <video
+                            src={product.video_url}
+                            muted
+                            preload="metadata"
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <span className="flex items-center justify-center w-full h-full text-white">
+                            <Play className="w-6 h-6 fill-current" />
+                          </span>
+                        )}
                       </button>
-                    ))}
+                    )}
+                    {images.map((img, i) => {
+                      const mediaIndex = mediaOffset + i;
+                      return (
+                        <button
+                          key={mediaIndex}
+                          onClick={() => setActiveImage(mediaIndex)}
+                          className={`flex-shrink-0 w-20 h-20 border rounded overflow-hidden ${activeImage === mediaIndex && "border-secondary-600"}`}
+                        >
+                          <img
+                            src={img.url}
+                            alt=""
+                            className="w-full h-full object-contain"
+                          />
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1752,18 +1894,37 @@ export default function ProductDetail() {
                       </p>
                     </div>
                   </div>
-                  {product.is_returnable && (
+                  {product.is_returnable && product.return_window > 0 ? (
                     <div className="flex items-start gap-2.5">
                       <RotateCcw
                         strokeWidth={1.5}
                         className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5"
                       />
+
                       <div>
                         <p className="text-sm font-medium text-secondary-950">
                           {product.return_window}-day Returns
                         </p>
+
                         <p className="text-xs text-secondary-800">
                           {product.return_type?.replace("_", " ")}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2.5">
+                      <PackageX
+                        strokeWidth={1.5}
+                        className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5"
+                      />
+
+                      <div>
+                        <p className="text-sm font-medium text-secondary-950">
+                          No Returns
+                        </p>
+
+                        <p className="text-xs text-secondary-800">
+                          Not eligible for return
                         </p>
                       </div>
                     </div>
@@ -1833,13 +1994,7 @@ export default function ProductDetail() {
                 </button>
               ) : (
                 <button
-                  onClick={() => {
-                    if (!isAuthenticated) {
-                      navigate("/login");
-                      return;
-                    }
-                    setReviewOpen(true);
-                  }}
+                  onClick={handleToggleReview}
                   className="h-9 inline-flex items-center gap-2 px-2 py-2 text-xs font-medium text-secondary-800 hover:text-secondary-900"
                 >
                   <PenLine strokeWidth={1.5} className="h-4 w-4" />
@@ -1910,7 +2065,7 @@ export default function ProductDetail() {
                       className="flex items-center gap-1.5 text-xs text-primary border rounded px-3 py-2 hover:bg-secondary transition-colors disabled:opacity-40"
                     >
                       <ImagePlus strokeWidth={1.5} className="h-4 w-4" />
-                      Add Photos ({reviewImages.length}/5)
+                      Add Photos ({reviewImages.length}/5) *
                     </button>
                   </div>
                   {reviewPreviews.length > 0 && (
@@ -1937,7 +2092,11 @@ export default function ProductDetail() {
                   )}
                   <button
                     onClick={handleSubmitReview}
-                    disabled={reviewSubmitting || reviewRating === 0}
+                    disabled={
+                      reviewSubmitting ||
+                      reviewRating === 0 ||
+                      reviewImages.length === 0
+                    }
                     className="w-full bg-primary text-white  py-2.5 rounded text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                   >
                     {reviewSubmitting ? "Submitting..." : "Submit Review"}

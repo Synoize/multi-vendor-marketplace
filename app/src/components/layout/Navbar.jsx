@@ -42,6 +42,38 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
+// Recursively render a nested category list (any depth).
+function CategoryTreeLinks({ items = [], indent = 0 }) {
+  if (!items.length) return null;
+  return (
+    <ul className={`flex flex-col ${indent ? "ml-3" : ""}`}>
+      {items.map((item) => (
+        <li key={item.id}>
+          <Link
+            to={`/products?category=${item.slug}`}
+            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-secondary-950 hover:bg-secondary-100 hover:text-primary truncate"
+          >
+            {(item.image || item.icon) && (
+              <img
+                src={item.image || item.icon}
+                alt=""
+                className="h-8 w-8 shrink-0 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+            <span className="truncate">{item.name}</span>
+          </Link>
+          {item.children?.length > 0 && (
+            <CategoryTreeLinks items={item.children} indent={indent + 1} />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function Navbar() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -558,27 +590,31 @@ export default function Navbar() {
                     </div>
 
                     {activeCat.children?.length > 0 ? (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-2.5">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-4 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin">
                         {activeCat.children.map((sub) => (
-                          <Link
-                            key={sub.id}
-                            to={`/products?category=${sub.slug}`}
-                            className="flex items-center gap-3 rounded-lg bg-white px-4 py-2 transition-colors duration-400 hover:bg-secondary-200"
-                          >
-                            {(sub.image || sub.icon) && (
-                              <img
-                                src={sub.image || sub.icon}
-                                alt=""
-                                className="h-12 w-12 shrink-0 object-contain"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            )}
-                            <span className="truncate text-sm text-secondary-950">
-                              {sub.name}
-                            </span>
-                          </Link>
+                          <div key={sub.id} className="group">
+                            <Link
+                              to={`/products?category=${sub.slug}`}
+                              className="flex items-center gap-2.5 rounded-lg bg-white px-3 py-2 transition-colors duration-400 hover:bg-secondary-200"
+                            >
+                              {(sub.image || sub.icon) && (
+                                <img
+                                  src={sub.image || sub.icon}
+                                  alt=""
+                                  className="h-8 w-8 shrink-0 object-contain"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              )}
+                              <span className="truncate text-sm font-medium text-secondary-950">
+                                {sub.name}
+                              </span>
+                            </Link>
+                            <div className="p-2.5 mt-1 max-h-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-h-96 group-hover:opacity-100 bg-secondary-200 rounded-lg">
+                              <CategoryTreeLinks items={sub.children || []} />
+                            </div>
+                          </div>
                         ))}
                       </div>
                     ) : (
@@ -679,7 +715,7 @@ export default function Navbar() {
               },
 
               // Public Routes
-              { to: "/seller-register", label: "Sell on Damini", icon: Store },
+              { to: "/seller-register", label: "Become a Seller", icon: Store },
               { to: "/support", label: "Support", icon: Headphones },
               { to: "/about", label: "About", icon: Info },
             ]

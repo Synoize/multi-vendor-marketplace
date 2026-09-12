@@ -20,6 +20,7 @@ const linkSections = [
       { label: "Shipping", to: "/shipping" },
       { label: "Cancellation & Returns", to: "/cancellation-returns" },
       { label: "FAQ", to: "/faq" },
+      { label: "Documentation", to: "/docs" },
     ],
   },
   {
@@ -197,7 +198,7 @@ export default function Footer() {
         </div>
 
         {/* DESKTOP: full grid */}
-        <div className="hidden lg:grid lg:grid-cols-5 gap-10">
+        <div className="hidden lg:grid lg:grid-cols-[0.7fr_0.7fr_0.7fr_1fr_1fr] gap-10">
           {linkSections.map((section) => (
             <div key={section.title}>
               <h3 className="text-secondary-700 uppercase text-xs font-semibold mb-4">

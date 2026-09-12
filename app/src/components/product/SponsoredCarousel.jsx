@@ -85,11 +85,7 @@ export default function SponsoredCarousel({ limit = 8 }) {
 
   return (
     <section className="bg-white">
-      <SectionHeader
-        title="Sponsored Products"
-        subtitle="Handpicked by our partners to elevate your shopping"
-        link="/products"
-      />
+      <SectionHeader title="Sponsored Products" subtitle="" link="/products" />
       <div className="px-3 sm:px-8 lg:px-12">
         <Swiper
           modules={[Autoplay]}
@@ -105,10 +101,7 @@ export default function SponsoredCarousel({ limit = 8 }) {
         >
           {sponsored.map((ad) => (
             <SwiperSlide key={ad.id}>
-              <ProductCard
-                product={ad}
-                onClick={() => handleClick(ad)}
-              />
+              <ProductCard product={ad} onClick={() => handleClick(ad)} />
             </SwiperSlide>
           ))}
         </Swiper>

@@ -53,7 +53,8 @@ INSERT INTO categories (name, slug, icon, banner, sort_order) VALUES
 ('Auto Accessories', 'auto-accessories', '/uploads/categories/auto-accessories.png', 'https://i.pinimg.com/1200x/57/68/34/5768349928764387d8f391880e90e343.jpg', 8),
 ('Books & More', 'books-more', '/uploads/categories/books.png', 'https://i.pinimg.com/1200x/e2/c3/c6/e2c3c688a3682445b60433461c2bb2de.jpg', 9),
 ('Pharmacy & Household', 'pharmacy-household', '/uploads/categories/pharmacy.png', 'https://i.pinimg.com/1200x/8b/60/e6/8b60e6abd12d62e31aec3c868f80ba08.jpg', 10),
-('Watches', 'watches', '/uploads/categories/watches.png', 'https://i.pinimg.com/1200x/f5/c9/2e/f5c92e87fcf86913fb93fa8bb0b269f8.jpg', 11)
+('Watches', 'watches', '/uploads/categories/watches.png', 'https://i.pinimg.com/1200x/f5/c9/2e/f5c92e87fcf86913fb93fa8bb0b269f8.jpg', 11),
+('Jewellery', 'jewellery', '/uploads/categories/jewellery.png', 'https://i.pinimg.com/1200x/05/53/ed/0553ed8111b332b7756c6131f3ee753f.jpg', 12)
 ON DUPLICATE KEY UPDATE id = id;
 
 -- ─── Categories (sub) ────────────────────────────────────────
@@ -92,6 +93,20 @@ INSERT INTO categories (parent_id, name, slug, image) VALUES
 (@beauty,    'Hair Care',         'hair-care', '/uploads/categories/haircare.png')
 ON DUPLICATE KEY UPDATE id = id;
 
+-- ─── Categories (sub-sub, arbitrary depth) ──────────────────
+SET @smartphones = (SELECT id FROM categories WHERE slug = 'smartphones');
+SET @mens_clothing = (SELECT id FROM categories WHERE slug = 'mens-clothing');
+SET @shoes = (SELECT id FROM categories WHERE slug = 'shoes');
+
+INSERT INTO categories (parent_id, name, slug, image) VALUES
+(@smartphones,   'Android Phones',    'android-phones', '/uploads/categories/smartphones.png'),
+(@smartphones,   'iPhones',           'iphones', '/uploads/categories/smartphones.png'),
+(@mens_clothing, 'T-Shirts',          't-shirts', '/uploads/categories/mens.png'),
+(@mens_clothing, 'Formal Shirts',     'formal-shirts', '/uploads/categories/mens.png'),
+(@shoes,         'Running Shoes',     'running-shoes', '/uploads/categories/gym.png'),
+(@shoes,         'Sneakers',          'sneakers', '/uploads/categories/mens.png')
+ON DUPLICATE KEY UPDATE id = id;
+
 -- ─── Banners ─────────────────────────────────────────────────
 INSERT INTO banners (
     title,
@@ -104,7 +119,7 @@ INSERT INTO banners (
 (
     'Big Billion Sale',
     'Up to 80% Off on Electronics',
-    'https://i.pinimg.com/1200x/ae/34/aa/ae34aa3903570ed58d1a8fcc831c3ab3.jpg',
+    '/uploads/banners/offers.png',
     '/products?category=electronics',
     'hero',
     1
@@ -112,7 +127,7 @@ INSERT INTO banners (
 (
     'Fashion Fiesta',
     'New Arrivals - Explore Latest Trends',
-    'https://i.pinimg.com/1200x/f0/f9/e4/f0f9e45724771f16745ad3f6f640d3ce.jpg',
+    '/uploads/banners/shop.png',
     '/products?category=fashion',
     'hero',
     2

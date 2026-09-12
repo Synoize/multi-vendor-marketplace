@@ -18,6 +18,7 @@ const AdsCreate = lazy(() => import("./pages/AdsCreate"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Support = lazy(() => import("./pages/Support"));
 const MyDetails = lazy(() => import("./pages/MyDetails"));
+const Docs = lazy(() => import("./pages/Docs"));
 
 // Full-screen loading fallback
 const PageLoader = () => (
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="support" element={<Support />} />
           <Route path="details" element={<MyDetails />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="docs" element={<Docs />} />
         </Route>
 
         {/* Catch-all → dashboard */}

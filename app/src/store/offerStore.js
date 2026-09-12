@@ -3,5 +3,6 @@ import api from '@/lib/axios'
 
 export const useOfferStore = create(() => ({
   fetchActiveOffers: () => api.get('/offers/active').then((r) => r.data.data || []),
+  fetchOfferProducts: (offerId, params = '') => api.get(`/offers/${offerId}/products?${params}`).then((r) => r.data.data),
   validateOffer: (offerId, cartItems, cartTotal) => api.post('/offers/validate', { offerId, cartItems, cartTotal }).then((r) => r.data),
 }))

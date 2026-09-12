@@ -289,6 +289,7 @@ export default function Contact() {
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    maxLength={10}
                     placeholder="10-digit mobile number"
                     className="w-full border border-secondary-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary"
                   />

@@ -20,6 +20,7 @@ import {
   CheckCheck,
   Trash2,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import useAuthStore from "../../store/authStore";
 import { useNotificationStore } from "../../store/notificationStore";
@@ -35,6 +36,7 @@ const NAV_LINKS = [
   { to: "/shipments", label: "Shipments", icon: Truck },
   { to: "/ads", label: "Ads & Campaigns", icon: Megaphone },
   { to: "/support", label: "Support", icon: Headphones },
+  { to: "/docs", label: "Documentation", icon: BookOpen },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -51,6 +53,7 @@ const pageTitleMap = {
   "/support": "Support",
   "/details": "My Details",
   "/settings": "Settings",
+  "/docs": "Documentation",
 };
 
 function Sidebar({ isOpen, onClose }) {

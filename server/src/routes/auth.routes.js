@@ -3,7 +3,7 @@
  */
 
 const express = require('express');
-const { register, verifyEmail, resendOTP, login, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refresh, logout, getMe } = require('../controllers/auth.controller');
+const { register, verifyEmail, resendOTP, login, validateReferral, requestVendorOtp, verifyVendorOtp, forgotPassword, resetPassword, refresh, logout, getMe } = require('../controllers/auth.controller');
 const { protect, optionalAuth } = require('../middlewares/auth.middleware');
 const { rateLimit } = require('../middlewares/rateLimit.middleware');
 const { validate } = require('../middlewares/validate.middleware');
@@ -36,6 +36,7 @@ const resetSchema = z.object({
 });
 
 router.post('/register', rateLimit('auth'), validate(registerSchema), register);
+router.post('/validate-referral', rateLimit('auth'), validate(z.object({ referralCode: z.string().optional().nullable() })), validateReferral);
 router.post('/verify-email', rateLimit('otp'), validate(otpSchema), verifyEmail);
 router.post('/resend-otp', rateLimit('otp'), validate(forgotSchema), resendOTP);
 router.post('/login', rateLimit('auth'), validate(loginSchema), login);

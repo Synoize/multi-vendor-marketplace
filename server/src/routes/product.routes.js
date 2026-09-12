@@ -6,7 +6,7 @@ const express = require('express');
 const { protect, requireRole, optionalAuth } = require('../middlewares/auth.middleware');
 const { rateLimit } = require('../middlewares/rateLimit.middleware');
 const { attachVendor } = require('../middlewares/vendor.middleware');
-const { uploadProductImages } = require('../middlewares/upload.middleware');
+const { uploadProductImages, uploadProductMedia } = require('../middlewares/upload.middleware');
 const productController = require('../controllers/product.controller');
 
 const router = express.Router();
@@ -46,7 +46,7 @@ router.get('/:productId/related', rateLimit('read'), productController.getRelate
 // ─── Vendor routes ────────────────────────────────────────────────────────────
 
 /** POST /products — create product */
-router.post('/', protect, requireRole('vendor'), attachVendor, rateLimit('write'), uploadProductImages, productController.createProduct);
+router.post('/', protect, requireRole('vendor'), attachVendor, rateLimit('write'), uploadProductMedia, productController.createProduct);
 
 /** PATCH /products/:id/status — vendor toggles their own product status */
 router.patch('/:id/status', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, productController.updateProductStatus);
@@ -66,8 +66,8 @@ router.delete('/variants/:variantId', protect, requireRole('vendor'), attachVend
 /** DELETE /products/images/:imageId */
 router.delete('/images/:imageId', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, productController.deleteProductImage);
 
-/** PUT /products/:id — update product (fields + images) */
-router.put('/:id', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, uploadProductImages, productController.updateProduct);
+/** PUT /products/:id — update product (fields + images + video) */
+router.put('/:id', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, uploadProductMedia, productController.updateProduct);
 
 /** DELETE /products/:id — delete product */
 router.delete('/:id', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, productController.deleteProduct);

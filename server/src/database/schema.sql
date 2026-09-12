@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS categories (
   icon        VARCHAR(100)    NULL,
   banner      VARCHAR(500)    NULL,
   sort_order  INT             NOT NULL DEFAULT 0,
+  gst_rate    DECIMAL(5,2)    NOT NULL DEFAULT 18.00 COMMENT 'Category-wise GST % charged to vendor payout',
   is_active   TINYINT(1)      NOT NULL DEFAULT 1,
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -120,7 +121,7 @@ CREATE TABLE IF NOT EXISTS vendors (
   passport_photo      VARCHAR(500)    NULL,
   udyam_certificate   VARCHAR(500)    NULL,
   bank_passbook       VARCHAR(500)    NULL,
-  kyc_status          ENUM('pending','submitted','under_review','approved','rejected') NOT NULL DEFAULT 'pending',
+  kyc_status          ENUM('draft','pending','submitted','under_review','approved','rejected') NOT NULL DEFAULT 'draft',
   kyc_rejected_reason TEXT            NULL,
   business_email_otp        VARCHAR(200)    NULL,
   business_email_otp_expires DATETIME       NULL,
@@ -149,6 +150,7 @@ CREATE TABLE IF NOT EXISTS vendors (
   shiprocket_pickup_verified TINYINT(1) NULL COMMENT 'Shiprocket phone-OTP verification: 1=verified, 0=unverified, NULL=unknown',
   -- Settings
   commission_rate     DECIMAL(5,2)    NULL DEFAULT NULL,
+  gst_rate            DECIMAL(5,2)    NOT NULL DEFAULT 18.00 COMMENT 'Vendor default GST % (used when category rate is unset)',
   is_active           TINYINT(1)      NOT NULL DEFAULT 1,
   is_featured         TINYINT(1)      NOT NULL DEFAULT 0,
   store_name          VARCHAR(200)    NULL,
@@ -208,6 +210,9 @@ CREATE TABLE IF NOT EXISTS products (
   total_reviews       INT             NOT NULL DEFAULT 0,
   -- Tags/Search
   tags                JSON            NULL,
+  -- Video
+  video_type          VARCHAR(20)     NULL COMMENT 'youtube, vimeo or direct',
+  video_url           VARCHAR(500)    NULL,
   -- Timestamps
   created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -370,6 +375,7 @@ CREATE TABLE IF NOT EXISTS orders (
   subtotal          DECIMAL(12,2)   NOT NULL,
   discount          DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
   shipping_charges  DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
+  gst_total         DECIMAL(12,2)   NOT NULL DEFAULT 0.00 COMMENT 'Total GST collected from vendor payouts (category-wise rates)',
   total             DECIMAL(12,2)   NOT NULL,
   payment_method    ENUM('cod','razorpay','wallet') NOT NULL DEFAULT 'cod',
   coins_redeemed    INT UNSIGNED    NOT NULL DEFAULT 0,
@@ -411,6 +417,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   total_price       DECIMAL(12,2)   NOT NULL,
   commission_rate   DECIMAL(5,2)    NOT NULL,
   commission_amount DECIMAL(10,2)   NOT NULL,
+  gst_rate          DECIMAL(5,2)    NULL COMMENT 'Category GST % applied',
+  gst_amount        DECIMAL(10,2)   NOT NULL DEFAULT 0.00 COMMENT 'GST deducted from vendor payout',
   vendor_payout     DECIMAL(10,2)   NOT NULL,
   status            ENUM('placed','confirmed','processing','shipped','out_for_delivery','delivered','cancelled','return_requested','returned','exchange_requested') NOT NULL DEFAULT 'placed',
   return_type       ENUM('full_return','replacement_only','refund_only','no_return') NOT NULL DEFAULT 'full_return',

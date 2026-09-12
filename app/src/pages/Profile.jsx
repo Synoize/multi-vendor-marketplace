@@ -321,6 +321,7 @@ export default function Profile() {
                               [key]: e.target.value,
                             }))
                           }
+                          maxLength={key === "phone" ? 10 : undefined}
                           className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
                         />
                       ) : (
@@ -685,6 +686,7 @@ export default function Profile() {
                   <input
                     value={addrForm.phone}
                     onChange={(e) => setAddr("phone", e.target.value)}
+                    maxLength={10}
                     className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-secondary-600"
                     placeholder="9876543210"
                   />

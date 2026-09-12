@@ -30,6 +30,7 @@ import FloatingVideoPlayer from "@/components/ui/FloatingVideoPlayer";
 import VideoReelsOverlay from "@/components/ui/VideoReelsOverlay";
 import "swiper/css";
 import "swiper/css/pagination";
+import SkeletonCard from "../components/ui/SkeletonCard";
 
 // Countdown Timer
 function CountdownTimer({ targetDate }) {
@@ -118,9 +119,18 @@ function HeroBanner({ banners }) {
 }
 
 // Section Header
-const SectionHeader = memo(function SectionHeader({ title, subtitle, link, linkText = "View All", icon }) {
+const SectionHeader = memo(function SectionHeader({
+  title,
+  subtitle,
+  link,
+  linkText = "View All",
+  icon,
+  className = "",
+}) {
   return (
-    <div className="flex items-center justify-between mb-4 md:mb-8 px-4 sm:px-10 lg:px-14">
+    <div
+      className={`flex items-center justify-between mb-4 md:mb-8 px-4 sm:px-10 lg:px-14 ${className}`}
+    >
       <div>
         <div className="flex items-center gap-2">
           <h2 className="sm:text-lg md:text-xl font-medium text-black">
@@ -136,7 +146,7 @@ const SectionHeader = memo(function SectionHeader({ title, subtitle, link, linkT
       {link && (
         <Link
           to={link}
-          className="flex items-center gap-1 text-secondary-800 hover:text-secondary-900 text-xs transition-colors"
+          className="flex items-center gap-1 text-secondary-900 hover:text-secondary-950 text-xs transition-colors"
         >
           {linkText} <ChevronRight strokeWidth={1.5} className="h-4 w-4" />
         </Link>
@@ -151,7 +161,7 @@ const CategoryPill = memo(function CategoryPill({ cat }) {
       to={`/products?category=${cat.slug}`}
       className="group flex min-w-[72px] flex-col items-center gap-2 sm:min-w-[90px] sm:gap-3 lg:min-w-0"
     >
-      <div className="flex items-center justify-center rounded-full bg-secondary-200 transition-all duration-300 group-hover:bg-secondary-300 h-20 w-20 sm:h-24 sm:w-24 p-4">
+      <div className="flex items-center justify-center rounded-full bg-white transition-all duration-300 group-hover:bg-secondary-50 h-16 w-16 sm:h-24 sm:w-24 p-4">
         <img
           src={cat.icon || cat.image}
           alt={cat.name}
@@ -159,10 +169,114 @@ const CategoryPill = memo(function CategoryPill({ cat }) {
         />
       </div>
 
-      <span className="text-center text-[11px] leading-tight text-secondary-800 line-clamp-1 transition-colors group-hover:text-secondary-950 sm:text-xs md:line-clamp-2 lg:text-sm">
+      <span className="text-center text-xs leading-tight text-secondary-950 line-clamp-1 transition-colors sm:text-xs md:line-clamp-2 lg:text-sm">
         {cat.name}
       </span>
     </Link>
+  );
+});
+
+// Offer product row — limited products from an offer's scope in a swiper.
+// "View All" opens the offer page with every eligible product.
+const offerGradients = [
+  "from-rose-400 via-red-400 to-orange-300",
+  "from-violet-400 via-purple-400 to-fuchsia-300",
+  "from-emerald-400 via-teal-400 to-cyan-300",
+  "from-blue-400 via-indigo-400 to-violet-300",
+];
+
+const OfferProductRow = memo(function OfferProductRow({ offer, index }) {
+  const { data: products = [] } = useQuery({
+    queryKey: ["offer-products", offer.id, "home"],
+    queryFn: async () => {
+      const d = await useOfferStore
+        .getState()
+        .fetchOfferProducts(offer.id, "limit=10");
+      return d?.products || [];
+    },
+    staleTime: 60 * 1000,
+  });
+
+  if (!products.length) return null;
+
+  const badge =
+    offer.badge_text ||
+    (offer.type === "bogo"
+      ? `Buy ${offer.buy_quantity} Get ${offer.get_quantity}`
+      : offer.type === "percentage"
+        ? `${offer.discount_value}% Off`
+        : offer.type === "fixed"
+          ? `₹${offer.discount_value} Off`
+          : "Free Shipping");
+
+  return (
+    <section
+      className={`relative overflow-hidden bg-gradient-to-r ${
+        offerGradients[index % offerGradients.length]
+      } m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]`}
+    >
+      <div className="flex items-center justify-between mb-4 md:mb-6 px-4 sm:px-10 lg:px-14">
+        <div>
+          <div className="flex items-center gap-2">
+            {badge && (
+              <span className="text-[10px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-full backdrop-blur uppercase tracking-wide">
+                {badge}
+              </span>
+            )}
+            <h2 className="text-sm md:text-xl font-medium text-white">
+              {offer.title}
+            </h2>
+          </div>
+          {offer.description && (
+            <p className="text-white/80 font-light text-[10px] md:text-xs mt-0.5 line-clamp-1">
+              {offer.description}
+            </p>
+          )}
+        </div>
+        <Link
+          to={`/offers/${offer.id}`}
+          className="flex items-center gap-1 text-white text-xs transition-colors hover:text-white/80 text-nowrap"
+        >
+          View All <ChevronRight strokeWidth={1.5} className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <div className="px-3 sm:px-10 lg:px-14">
+        <Swiper
+          modules={[Autoplay]}
+          spaceBetween={12}
+          slidesPerView={2}
+          autoplay={{ delay: 3500, disableOnInteraction: false }}
+          breakpoints={{
+            480: { slidesPerView: 3 },
+            640: { slidesPerView: 3 },
+            1024: { slidesPerView: 4 },
+            1280: { slidesPerView: 5 },
+          }}
+        >
+          {products.map((p) => (
+            <SwiperSlide key={p.id}>
+              <ProductCard product={p} />
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      </div>
+
+      {/* <div className="sm:hidden px-3">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-3 px-3 py-1">
+          {products.map((p) => (
+            <div key={p.id} className="w-40 flex-shrink-0">
+              <ProductCard product={p} />
+            </div>
+          ))}
+          {products.map((p) => (
+            <div key={p.id} className="w-40 flex-shrink-0">
+              <ProductCard product={p} />
+            </div>
+          ))}
+        </div>
+      </div> */}
+    </section>
   );
 });
 
@@ -396,9 +510,9 @@ export default function Home() {
         )}
         {/* Categories */}
         {categories.length > 0 && (
-          <section className="bg-white">
+          <section className="bg-accent-50 m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]">
             <SectionHeader title="Shop by Category" link="/products" />
-            <div className="flex gap-5 overflow-x-auto scrollbar-hide px-4 py-2 sm:px-8 lg:grid lg:grid-cols-8 lg:gap-6 lg:overflow-visible lg:px-12 xl:grid-cols-10">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 py-2 sm:px-8 lg:grid lg:grid-cols-8 sm:gap-6 lg:overflow-visible lg:px-8 xl:grid-cols-10">
               {categories
                 .flatMap((cat) => {
                   const subs = cat.children || [];
@@ -472,7 +586,7 @@ export default function Home() {
                         </div>
 
                         <span className="sm:mt-2 text-[8px] sm:text-xs lg:text-sm font-medium text-accent">
-                          ⚡ Limited Time Offer
+                          Limited Time Offer
                         </span>
                       </div>
                     </div>
@@ -484,7 +598,7 @@ export default function Home() {
         )}
         {/* Featured Products */}
         {featuredProducts.length > 0 && (
-          <section className="bg-white">
+          <section className="bg-slate-50 m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]">
             <SectionHeader
               title="Featured Products"
               // subtitle="Handpicked just for you"
@@ -492,7 +606,7 @@ export default function Home() {
             />
             {featuredLoading ? (
               <div className="px-3 sm:px-8 lg:px-12">
-                <SkeletonProductGrid count={5} />
+                <SkeletonProductGrid count={10} />
               </div>
             ) : featuredProducts.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 px-3 sm:px-8 lg:px-12">
@@ -515,44 +629,84 @@ export default function Home() {
         )}
         {/* Best Sellers */}
         {topDeals.length > 0 && (
-          <section className="bg-white">
+          <section className="bg-primary-50 m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]">
             <SectionHeader
               title="Best Sellers"
               // subtitle="Most popular products"
               link="/products?sort=sale_count&order=desc"
             />
-            {dealsLoading ? (
-              <div className="px-3 sm:px-8 lg:px-12">
-                <SkeletonProductGrid count={5} />
-              </div>
-            ) : topDeals.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 px-3 sm:px-8 lg:px-12">
-                {topDeals.map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-            ) : null}
+
+            <div className="px-3 sm:px-10 lg:px-14">
+              <Swiper
+                modules={[Autoplay]}
+                spaceBetween={12}
+                slidesPerView={2}
+                autoplay={{ delay: 3500, disableOnInteraction: false }}
+                breakpoints={{
+                  480: { slidesPerView: 2 },
+                  640: { slidesPerView: 3 },
+                  1024: { slidesPerView: 4 },
+                  1280: { slidesPerView: 5 },
+                }}
+              >
+                {dealsLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <SwiperSlide key={i}>
+                      <SkeletonCard />
+                    </SwiperSlide>
+                  ))
+                ) : topDeals.length > 0 ? (
+                  <>
+                    {topDeals.map((p) => (
+                      <SwiperSlide key={p.id}>
+                        <ProductCard key={p.id} product={p} />
+                      </SwiperSlide>
+                    ))}
+                  </>
+                ) : null}
+              </Swiper>
+            </div>
           </section>
         )}
         {/* Recently Viewed (logged-in users only, max 10) */}
         {isAuthenticated && recentlyViewed.length > 4 && (
-          <section className="bg-white">
+          <section className="bg-orange-50 m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]">
             <SectionHeader
               title="Recently Viewed"
               // subtitle="Pick up where you left off"
               link="/products"
             />
-            {recentlyLoading ? (
-              <div className="px-3 sm:px-8 lg:px-12">
-                <SkeletonProductGrid count={5} />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 px-3 sm:px-8 lg:px-12">
-                {recentlyViewed.slice(0, 10).map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-            )}
+
+            <div className="px-3 sm:px-10 lg:px-14">
+              <Swiper
+                modules={[Autoplay]}
+                spaceBetween={12}
+                slidesPerView={2}
+                autoplay={{ delay: 3500, disableOnInteraction: false }}
+                breakpoints={{
+                  480: { slidesPerView: 2 },
+                  640: { slidesPerView: 3 },
+                  1024: { slidesPerView: 4 },
+                  1280: { slidesPerView: 5 },
+                }}
+              >
+                {recentlyLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <SwiperSlide key={i}>
+                      <SkeletonCard />
+                    </SwiperSlide>
+                  ))
+                ) : (
+                  <>
+                    {recentlyViewed.slice(0, 10).map((p) => (
+                      <SwiperSlide key={p.id}>
+                        <ProductCard key={p.id} product={p} />
+                      </SwiperSlide>
+                    ))}
+                  </>
+                )}
+              </Swiper>
+            </div>
           </section>
         )}
         {/* Active Offers / Promotions */}
@@ -578,55 +732,55 @@ export default function Home() {
                 {activeOffers.map((offer) => (
                   <SwiperSlide key={offer.id}>
                     <Link
-                      to="/products"
+                      to={`/offers/${offer.id}`}
                       className="group block h-full overflow-hidden rounded-2xl bg-white border border-secondary-200 shadow-sm transition-all duration-300"
                     >
                       {offer.image ? (
-                        <div className="h-28 sm:h-44 xl:h-60 overflow-hidden">
+                        <div className="relative h-28 sm:h-44 overflow-hidden">
                           <img
                             src={offer.image}
                             alt={offer.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
+                          <p className="absolute top-2 sm:top-3 right-2 sm:right-3 text-[9px] sm:text-[10px] font-bold text-white bg-green-500 px-1.5 sm:px-2 py-0.5 rounded">
+                            Until{" "}
+                            {new Date(offer.valid_to).toLocaleDateString(
+                              "en-IN",
+                              {
+                                month: "short",
+                                day: "numeric",
+                              },
+                            )}
+                          </p>
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1 sm:gap-2 mb-1">
+                            {offer.badge_text && (
+                              <span className="text-[9px] sm:text-[10px] font-bold text-white bg-[#2874F0] px-1.5 sm:px-2 py-0.5 rounded">
+                                {offer.badge_text}
+                              </span>
+                            )}
+                            <span className="text-[9px] sm:text-[10px] font-semibold text-green-600 bg-green-50 px-1 sm:px-1.5 py-0.5 rounded">
+                              {offer.type === "bogo"
+                                ? `Buy ${offer.buy_quantity} Get ${offer.get_quantity}`
+                                : offer.type === "percentage"
+                                  ? `${offer.discount_value}% Off`
+                                  : offer.type === "fixed"
+                                    ? `₹${offer.discount_value} Off`
+                                    : "Free Shipping"}
+                            </span>
+                          </div>
                         </div>
                       ) : (
-                        <div className="h-16" />
+                        <div className="h-28 sm:h-44" />
                       )}
                       <div className="p-3 sm:p-4">
-                        <div className="flex items-center gap-1 sm:gap-2 mb-1">
-                          {offer.badge_text && (
-                            <span className="text-[9px] sm:text-[10px] font-bold text-white bg-[#2874F0] px-1.5 sm:px-2 py-0.5 rounded">
-                              {offer.badge_text}
-                            </span>
-                          )}
-                          <span className="text-[9px] sm:text-[10px] font-semibold text-green-600 bg-green-50 px-1 sm:px-1.5 py-0.5 rounded">
-                            {offer.type === "bogo"
-                              ? `Buy ${offer.buy_quantity} Get ${offer.get_quantity}`
-                              : offer.type === "percentage"
-                                ? `${offer.discount_value}% Off`
-                                : offer.type === "fixed"
-                                  ? `₹${offer.discount_value} Off`
-                                  : "Free Shipping"}
-                          </span>
-                        </div>
                         <h3 className="text-xs sm:text-sm font-semibold text-secondary-950 line-clamp-1">
                           {offer.title}
                         </h3>
                         {offer.description && (
-                          <p className="text-[10px] sm:text-xs text-secondary-700 mt-0.5 line-clamp-1">
+                          <p className="text-[10px] sm:text-xs text-secondary-700 mt-0.5 line-clamp-2">
                             {offer.description}
                           </p>
                         )}
-                        <p className="text-[10px] text-secondary-900 mt-1.5">
-                          Until{" "}
-                          {new Date(offer.valid_to).toLocaleDateString(
-                            "en-IN",
-                            {
-                              month: "short",
-                              day: "numeric",
-                            },
-                          )}
-                        </p>
                       </div>
                     </Link>
                   </SwiperSlide>
@@ -635,6 +789,10 @@ export default function Home() {
             </div>
           </section>
         )}
+        {/* Offer product rows — limited products per offer, swipeable */}
+        {activeOffers.slice(0, 4).map((offer, i) => (
+          <OfferProductRow key={offer.id} offer={offer} index={i} />
+        ))}
         {midBanners.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 sm:px-8 lg:px-12">
             {midBanners.map((b, i) => {
@@ -694,33 +852,53 @@ export default function Home() {
           </div>
         )}
         {/* Trending Products */}
-        <section className="bg-white">
+        <section className="bg-blue-50 m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]">
           <SectionHeader
             title="Trending Now"
             // subtitle="What's hot this week"
             link="/products?sort=view_count&order=desc"
           />
-          {trendingLoading ? (
-            <div className="px-3 sm:px-8 lg:px-12">
-              <SkeletonProductGrid count={5} />
-            </div>
-          ) : trendingProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 px-3 sm:px-8 lg:px-12">
-              {trendingProducts.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-24">
-              <ShoppingBasket
-                strokeWidth={1}
-                className="mb-3 h-10 w-10 text-secondary-700"
-              />
-              <p className="text-center text-sm text-secondary-700">
-                No trending products available
-              </p>
-            </div>
-          )}
+
+          <div className="px-3 sm:px-10 lg:px-14">
+            <Swiper
+              modules={[Autoplay]}
+              spaceBetween={12}
+              slidesPerView={2}
+              autoplay={{ delay: 3500, disableOnInteraction: false }}
+              breakpoints={{
+                480: { slidesPerView: 3 },
+                640: { slidesPerView: 3 },
+                1024: { slidesPerView: 4 },
+                1280: { slidesPerView: 5 },
+              }}
+            >
+              {trendingLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <SwiperSlide key={i}>
+                    <SkeletonCard />
+                  </SwiperSlide>
+                ))
+              ) : trendingProducts.length > 0 ? (
+                <>
+                  {trendingProducts.map((p) => (
+                    <SwiperSlide key={p.id}>
+                      <ProductCard key={p.id} product={p} />
+                    </SwiperSlide>
+                  ))}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-24">
+                  <ShoppingBasket
+                    strokeWidth={1}
+                    className="mb-3 h-10 w-10 text-secondary-700"
+                  />
+                  <p className="text-center text-sm text-secondary-700">
+                    No trending products available
+                  </p>
+                </div>
+              )}
+            </Swiper>
+          </div>
         </section>
         {/* Trust Section */}
         <section className="bg-white pt-4 p-8 sm:pt-8">

@@ -6,6 +6,7 @@
 const { query, queryRows, queryOne, transaction } = require('../database/connection');
 const { getPagination, getCursorPagination, encodeCursor } = require('../utils/pagination.util');
 const { generateSKU, createSlug } = require('../utils/sku.util');
+const { getDescendantCategoryIds } = require('../utils/category.util');
 const { v4: uuidv4 } = require('uuid');
 
 /** Safely parse a stored JSON string; returns fallback (default {}) on failure. */
@@ -31,30 +32,41 @@ const generateUniqueSlug = async (baseSlug) => {
 /** Coerce a value to a TINYINT bit (1/0). Missing/falsy-string aware. */
 const toBit = (v) => (v === false || v === 0 || v === '0' || v === 'false' ? 0 : 1);
 
+const VIDEO_TYPES = ['youtube', 'vimeo', 'direct'];
+
+/** Normalize product video fields: empty string clears, missing type defaults to direct. */
+const normalizeVideo = (url, type) => {
+  const cleanUrl = typeof url === 'string' && url.trim() ? url.trim() : null;
+  if (!cleanUrl) return { video_url: null, video_type: null };
+  return { video_url: cleanUrl, video_type: VIDEO_TYPES.includes(type) ? type : 'direct' };
+};
+
 /** Create a new product */
 const createProduct = async (vendorId, data, imageFiles = []) => {
   const { name, description, short_description, price, mrp, cost_price, stock, category_id, brand_id,
     weight, dimensions, is_returnable, return_type, return_window, is_cod_available,
-    seo_title, seo_description, seo_keywords, tags, low_stock_threshold, variants } = data;
+    seo_title, seo_description, seo_keywords, tags, low_stock_threshold, variants, video_url, video_type } = data;
 
   const slug = await generateUniqueSlug(createSlug(name));
   const cat = await queryOne('SELECT slug FROM categories WHERE id = ?', [category_id]);
   const sku = generateSKU(cat?.slug || 'GEN', vendorId);
   const productId = uuidv4();
+  const video = normalizeVideo(video_url, video_type);
 
   await transaction(async (conn) => {
     await conn.execute(
       `INSERT INTO products (id, vendor_id, category_id, brand_id, name, slug, description, short_description,
         price, mrp, cost_price, stock, sku, weight, dimensions, is_returnable, return_type, return_window,
-        is_cod_available, seo_title, seo_description, seo_keywords, tags, low_stock_threshold, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        is_cod_available, seo_title, seo_description, seo_keywords, tags, low_stock_threshold, video_type, video_url, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [productId, vendorId, category_id, brand_id || null, name, slug, description || null,
         short_description || null, price, mrp, cost_price || null, stock || 0, sku,
         weight || null, dimensions ? JSON.stringify(dimensions) : null,
         toBit(is_returnable), return_type || 'full_return', return_window || 7,
         toBit(is_cod_available),
         seo_title || null, seo_description || null, seo_keywords || null,
-        tags ? JSON.stringify(tags) : null, low_stock_threshold || 5]
+        tags ? JSON.stringify(tags) : null, low_stock_threshold || 5,
+        video.video_type, video.video_url]
     );
 
     for (let i = 0; i < imageFiles.length; i++) {
@@ -102,6 +114,11 @@ const updateProduct = async (productId, vendorId, data, imageFiles = []) => {
   if (data.tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(data.tags)); }
   if (data.is_returnable !== undefined) { updates.push('is_returnable = ?'); params.push(toBit(data.is_returnable)); }
   if (data.is_cod_available !== undefined) { updates.push('is_cod_available = ?'); params.push(toBit(data.is_cod_available)); }
+  if (data.video_url !== undefined || data.video_type !== undefined) {
+    const video = normalizeVideo(data.video_url, data.video_type);
+    updates.push('video_url = ?'); params.push(video.video_url);
+    updates.push('video_type = ?'); params.push(video.video_type);
+  }
   if (updates.length) {
     params.push(productId);
     await query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, params);
@@ -197,7 +214,16 @@ const listProducts = async (filters = {}) => {
   const params = [];
 
   if (search) { conditions.push('p.name LIKE ?'); params.push(`%${search}%`); }
-  if (category) { conditions.push('(c.slug = ? OR c.parent_id = (SELECT id FROM categories WHERE slug = ?))'); params.push(category, category); }
+  if (category) {
+    // Include every descendant of the selected category (any depth).
+    const ids = await getDescendantCategoryIds({ slug: category });
+    if (ids.length) {
+      conditions.push(`p.category_id IN (${ids.map(() => '?').join(',')})`);
+      params.push(...ids);
+    } else {
+      conditions.push('1 = 0');
+    }
+  }
   if (brand) { conditions.push('b.slug = ?'); params.push(brand); }
   if (vendor_id) { conditions.push('p.vendor_id = ?'); params.push(vendor_id); }
   if (min_price) { conditions.push('p.price >= ?'); params.push(parseFloat(min_price)); }

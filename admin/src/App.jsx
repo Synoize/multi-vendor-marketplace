@@ -25,6 +25,7 @@ const Reports = lazy(() => import("./pages/Reports"));
 const Support = lazy(() => import("./pages/Support"));
 const Settings = lazy(() => import("./pages/Settings"));
 const FestivalSales = lazy(() => import("./pages/FestivalSales"));
+const Docs = lazy(() => import("./pages/Docs"));
 
 function PageLoader() {
   return (
@@ -97,6 +98,7 @@ export default function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="support" element={<Support />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="docs" element={<Docs />} />
         </Route>
 
         {/* Fallback */}

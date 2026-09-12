@@ -1,4 +1,5 @@
 const { query, queryRows, queryOne } = require('../database/connection');
+const { getDescendantCategoryIds } = require('../utils/category.util');
 
 const getOffers = async (params = {}) => {
   const { page = 1, limit = 20, status, type, search } = params;
@@ -73,6 +74,66 @@ const getActiveOffers = async () => {
   );
 };
 
+/**
+ * Products that are eligible for an offer, based on the offer's scope
+ * (all / category / product / vendor). Category scope includes both the
+ * category itself and its child categories.
+ */
+const getOfferProducts = async (offerId, { page = 1, limit = 20 } = {}) => {
+  const offer = await queryOne('SELECT * FROM offers WHERE id = ?', [offerId]);
+  if (!offer) throw Object.assign(new Error('Offer not found'), { statusCode: 404 });
+
+  const conditions = ["p.status = 'active'", 'p.deleted_at IS NULL'];
+  const binds = [];
+
+  if (offer.applicable_to === 'category' && offer.applicable_id) {
+    // Category scope includes every descendant category (any depth).
+    const ids = await getDescendantCategoryIds({ id: offer.applicable_id });
+    if (ids.length) {
+      conditions.push(`p.category_id IN (${ids.map(() => '?').join(',')})`);
+      binds.push(...ids);
+    } else {
+      conditions.push('1 = 0');
+    }
+  } else if (offer.applicable_to === 'product' && offer.applicable_id) {
+    conditions.push('p.id = ?');
+    binds.push(offer.applicable_id);
+  } else if (offer.applicable_to === 'vendor' && offer.applicable_id) {
+    conditions.push('p.vendor_id = ?');
+    binds.push(offer.applicable_id);
+  }
+
+  const where = conditions.join(' AND ');
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  const products = await queryRows(
+    `SELECT p.id, p.name, p.slug, p.price, p.mrp, p.rating, p.total_reviews, p.stock, p.is_featured, p.is_cod_available, p.sale_count,
+      (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
+      b.name as brand_name, v.store_name
+     FROM products p
+     LEFT JOIN categories c ON p.category_id = c.id
+     LEFT JOIN brands b ON p.brand_id = b.id
+     LEFT JOIN vendors v ON p.vendor_id = v.id
+     WHERE ${where}
+     ORDER BY p.sale_count DESC, p.id DESC LIMIT ? OFFSET ?`,
+    [...binds, parseInt(limit), offset]
+  );
+
+  const [[{ total }]] = await query(
+    `SELECT COUNT(*) as total FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE ${where}`,
+    binds
+  );
+
+  return {
+    offer,
+    products,
+    total: total || 0,
+    page: parseInt(page),
+    limit: parseInt(limit),
+    hasMore: offset + products.length < (total || 0),
+  };
+};
+
 const validateOffer = async (offerId, cartItems, cartTotal) => {
   const offer = await queryOne(
     'SELECT * FROM offers WHERE id = ? AND is_active = 1 AND valid_from <= NOW() AND valid_to >= NOW()',
@@ -144,5 +205,5 @@ const recordUsage = async (offerId, userId, orderId, discount, conn = null) => {
 
 module.exports = {
   getOffers, createOffer, updateOffer, deleteOffer, toggleOffer,
-  getActiveOffers, validateOffer, applyOffer, recordUsage,
+  getActiveOffers, getOfferProducts, validateOffer, applyOffer, recordUsage,
 };

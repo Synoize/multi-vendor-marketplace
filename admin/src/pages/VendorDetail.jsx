@@ -358,6 +358,14 @@ export default function VendorDetail() {
                   }
                 />
                 <InfoRow label="GST Number" value={vendor.gst_number} mono />
+                <InfoRow
+                  label="Default GST Rate"
+                  value={
+                    vendor.gst_rate != null
+                      ? `${vendor.gst_rate}%`
+                      : "18% (default)"
+                  }
+                />
                 <InfoRow label="PAN Number" value={vendor.pan_number} mono />
                 <InfoRow
                   label="FSSAI Number"

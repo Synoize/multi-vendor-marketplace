@@ -6,4 +6,6 @@ export const useReviewStore = create(() => ({
   submitReview: (productId, formData) => api.post(`/reviews/${productId}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data),
+  checkEligibility: (productId) =>
+    api.get(`/reviews/eligibility/${productId}`).then((r) => r.data.data || { canReview: false, orderItemId: null, alreadyReviewed: false }),
 }))

@@ -26,7 +26,21 @@ const PENDING_UPDATE_SECTIONS = {
 
 /** GET /vendors/profile */
 const getProfile = asyncHandler(async (req, res) => {
-  sendSuccess(res, req.vendor);
+  const settingRow = await queryOne(
+    "SELECT `value` FROM platform_settings WHERE `key` = 'commission_rate'"
+  );
+  const platformCommissionRate =
+    settingRow && settingRow.value != null ? parseFloat(settingRow.value) : 5;
+  const vendorRate = req.vendor.commission_rate;
+  const effectiveCommissionRate =
+    vendorRate != null && vendorRate !== ''
+      ? parseFloat(vendorRate)
+      : platformCommissionRate;
+  sendSuccess(res, {
+    ...req.vendor,
+    platform_commission_rate: platformCommissionRate,
+    effective_commission_rate: effectiveCommissionRate,
+  });
 });
 
 /** PUT /vendors/profile */
@@ -94,6 +108,13 @@ const createPendingUpdate = asyncHandler(async (req, res) => {
   }
   if (Object.keys(filtered).length === 0) {
     return sendError(res, 'No valid changes provided', 400);
+  }
+
+  if (filtered.gst_number) {
+    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+    if (!gstinRegex.test(filtered.gst_number)) {
+      return sendError(res, 'Invalid GSTIN format. Must be 15 characters: 2 digits (state) + 5 letters (PAN) + 4 digits + 1 letter + Z + 1 alphanumeric', 400);
+    }
   }
 
   const oldValues = {};
@@ -182,7 +203,7 @@ const sendBusinessOTP = asyncHandler(async (req, res) => {
   // Ensure a vendor record exists for this user
   let vendor = await queryOne('SELECT id FROM vendors WHERE user_id = ?', [req.user.id]);
   if (!vendor) {
-    await query('INSERT INTO vendors (id, user_id) VALUES (UUID(), ?)', [req.user.id]);
+    await query('INSERT INTO vendors (id, user_id, business_name) VALUES (UUID(), ?, ?)', [req.user.id, '']);
     vendor = await queryOne('SELECT id FROM vendors WHERE user_id = ?', [req.user.id]);
   }
   const otp = generateOTP(6);
@@ -241,30 +262,60 @@ const getKYC = asyncHandler(async (req, res) => {
   sendSuccess(res, vendor || null);
 });
 
-/** POST /vendors/kyc — submit KYC (creates vendor record if needed, grants vendor role) */
+/**
+ * POST /vendors/kyc — submit a COMPLETE KYC application.
+ * Only fully-completed applications are marked kyc_status='pending' (shown to admins).
+ * Partial/incomplete submissions are rejected and never granted 'pending', so they
+ * do not appear on the admin approval page.
+ */
 const submitKYC = asyncHandler(async (req, res) => {
   const { gst_number, fssai_number, pan_number, business_name, business_type, business_email, store_name, store_description,
     bank_name, account_number, ifsc_code, account_holder,
     pickup_name, pickup_phone, pickup_line1, pickup_city, pickup_state, pickup_pincode } = req.body;
+  const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
-  // Find or create vendor record
-  let vendor = await queryOne('SELECT * FROM vendors WHERE user_id = ?', [req.user.id]);
-  if (!vendor) {
-    await query('INSERT INTO vendors (id, user_id) VALUES (UUID(), ?)', [req.user.id]);
-    vendor = await queryOne('SELECT * FROM vendors WHERE user_id = ?', [req.user.id]);
+  const files = req.files || {};
+  const getUrl = (field) => files[field]?.[0] ? `/uploads/kyc/${files[field][0].filename}` : null;
+
+  const vendor = await queryOne('SELECT * FROM vendors WHERE user_id = ?', [req.user.id]);
+
+  // ─── Completeness check (mirrors the 5-step seller registration) ────────────
+  const storeComplete = !!(store_name && store_name.trim());
+  const businessComplete = !!(business_name && business_name.trim()
+    && pan_number && pan_number.trim()
+    && gst_number && gstinRegex.test(gst_number.trim().toUpperCase()));
+  const emailVerified = !!(vendor && vendor.business_email_verified);
+  const pickupComplete = !!(pickup_name && pickup_name.trim() && pickup_phone && pickup_phone.trim()
+    && pickup_line1 && pickup_line1.trim() && pickup_city && pickup_city.trim()
+    && pickup_state && pickup_state.trim() && pickup_pincode && /^\d{6}$/.test(pickup_pincode.trim()));
+  const bankComplete = !!(bank_name && bank_name.trim() && account_number && account_number.trim()
+    && ifsc_code && ifsc_code.trim() && account_holder && account_holder.trim());
+
+  const REQUIRED_DOCS = ['gst_certificate', 'pan_image', 'aadhar_image_front', 'aadhar_image_back', 'passport_photo', 'cancelled_cheque'];
+  const missingDocs = REQUIRED_DOCS.filter((d) => !(files[d]?.[0] || (vendor && vendor[d])));
+
+  if (!storeComplete || !businessComplete || !emailVerified || !pickupComplete || !bankComplete || missingDocs.length) {
+    const missing = [];
+    if (!storeComplete) missing.push('store name');
+    if (!businessComplete) missing.push('business details (business name, PAN, valid GSTIN)');
+    if (!emailVerified) missing.push('business email verification');
+    if (!bankComplete) missing.push('bank details');
+    if (!pickupComplete) missing.push('pickup address details (contact name, phone, address, city, state, pincode)');
+    if (missingDocs.length) missing.push(`required documents (${missingDocs.join(', ')})`);
+    return sendError(res, `Please complete all required fields before submitting: ${missing.join(', ')}`, 400);
   }
 
-  // Require business email verification
-  if (!vendor.business_email_verified && !business_email) {
-    return sendError(res, 'Business email is required and must be verified', 400);
-  }
-  const targetEmail = business_email || vendor.business_email;
+  const targetEmail = business_email || vendor?.business_email;
   if (!targetEmail) {
     return sendError(res, 'Business email is required', 400);
   }
 
-  const files = req.files || {};
-  const getUrl = (field) => files[field]?.[0] ? `/uploads/kyc/${files[field][0].filename}` : null;
+  // Create the vendor record now that the application is complete (new rows default to 'draft')
+  let record = vendor;
+  if (!record) {
+    await query('INSERT INTO vendors (id, user_id, business_name) VALUES (UUID(), ?, ?)', [req.user.id, business_name || '']);
+    record = await queryOne('SELECT * FROM vendors WHERE user_id = ?', [req.user.id]);
+  }
 
   const updates = {
     gst_number: gst_number?.toUpperCase(),
@@ -290,7 +341,7 @@ const submitKYC = asyncHandler(async (req, res) => {
   if (getUrl('cancelled_cheque')) updates.cancelled_cheque = getUrl('cancelled_cheque');
 
   const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-  const params = [...Object.values(updates).map(v => v ?? null), vendor.id];
+  const params = [...Object.values(updates).map(v => v ?? null), record.id];
   await query(`UPDATE vendors SET ${fields} WHERE id = ?`, params);
 
   sendSuccess(res, null, 'KYC submitted for review');

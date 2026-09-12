@@ -27,6 +27,19 @@ const SORT_OPTIONS = [
 
 const filterOpenState = {};
 
+/** Walk a nested category tree and return the path of nodes (root → leaf). */
+const findCatPath = (nodes, slug, trail = []) => {
+  for (const node of nodes || []) {
+    const next = [...trail, node];
+    if (node.slug === slug) return next;
+    if (node.children?.length) {
+      const found = findCatPath(node.children, slug, next);
+      if (found) return found;
+    }
+  }
+  return [];
+};
+
 function FilterSection({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(
     filterOpenState[title] !== undefined ? filterOpenState[title] : defaultOpen,
@@ -78,8 +91,6 @@ export default function Products() {
     min: filters.min_price,
     max: filters.max_price,
   });
-
-  const [catParentSlug, setCatParentSlug] = useState("");
 
   useEffect(() => {
     // The filter panel renders twice (desktop sidebar + mobile drawer), so a
@@ -181,31 +192,24 @@ export default function Products() {
   });
 
   useEffect(() => {
-    const parent = categories.find(
-      (c) =>
-        !c.parent_id &&
-        (c.slug === filters.category ||
-          (c.children || []).some((s) => s.slug === filters.category)),
-    );
-    setCatParentSlug(parent?.slug || "");
     setBannerOpen(true);
-  }, [filters.category, categories]);
+  }, [filters.category]);
+
+  const activeCategoryPath = useMemo(
+    () => findCatPath(categories, filters.category),
+    [filters.category, categories],
+  );
+  const activeTopSlug = activeCategoryPath[0]?.slug || "";
+  const activeLeaf = activeCategoryPath[activeCategoryPath.length - 1] || null;
+  const activeCategoryName = activeLeaf?.name || filters.category;
 
   const activeCategoryBanner = useMemo(() => {
     if (!filters.category || !categories.length) return null;
-    const parent = categories.find(
-      (c) =>
-        !c.parent_id &&
-        (c.slug === filters.category ||
-          (c.children || []).some((s) => s.slug === filters.category)),
-    );
-    if (parent?.banner) return parent.banner;
-    if (parent?.children) {
-      const sub = parent.children.find((s) => s.slug === filters.category);
-      if (sub?.banner) return sub.banner;
+    for (let i = activeCategoryPath.length - 1; i >= 0; i--) {
+      if (activeCategoryPath[i].banner) return activeCategoryPath[i].banner;
     }
     return null;
-  }, [filters.category, categories]);
+  }, [filters.category, categories, activeCategoryPath]);
 
   const { data: brands = [] } = useQuery({
     queryKey: ["brands"],
@@ -274,18 +278,54 @@ export default function Products() {
     "store_name",
   ].filter((k) => filters[k]).length;
 
-  const activeCategoryName = (() => {
-    if (!filters.category) return "";
-    const top = categories.find((c) => c.slug === filters.category);
-    if (top) return top.name;
-    const parent = categories.find((c) =>
-      (c.children || []).some((s) => s.slug === filters.category),
+  // Recursively render the category tree; branches along the active path stay
+  // expanded so customers can drill down to any depth like on Meesho.
+  function renderCategoryTree(nodes, depth = 0) {
+    if (!nodes?.length) return null;
+    return (
+      <div className="flex flex-col gap-0.5">
+        {nodes.map((item) => {
+          const active = filters.category === item.slug;
+          const children = item.children || [];
+          const hasChildren = children.length > 0;
+          const expanded = activeCategoryPath.some((p) => p.slug === item.slug);
+          return (
+            <div key={item.id}>
+              <button
+                onClick={() => updateFilter("category", item.slug)}
+                style={{ paddingLeft: `${10 + depth * 16}px` }}
+                className={`flex w-full items-center gap-2 truncate rounded-lg px-3 py-1.5 text-left text-xs transition ${
+                  active
+                    ? "bg-primary text-white"
+                    : "text-secondary-800 hover:bg-secondary"
+                }`}
+              >
+                {(item.image || item.icon) && (
+                  <img
+                    src={item.image || item.icon}
+                    alt=""
+                    className="h-6 w-6 shrink-0 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
+                <span className="truncate">{item.name}</span>
+                {hasChildren && (
+                  <ChevronRight
+                    className={`h-3 w-3 ml-auto shrink-0 transition-transform ${
+                      expanded ? "rotate-90" : ""
+                    } ${active ? "text-white" : "text-secondary-600"}`}
+                  />
+                )}
+              </button>
+              {expanded && renderCategoryTree(children, depth + 1)}
+            </div>
+          );
+        })}
+      </div>
     );
-    if (parent) {
-      return parent.children.find((s) => s.slug === filters.category)?.name;
-    }
-    return filters.category;
-  })();
+  }
 
   const FilterPanel = () => (
     <div>
@@ -319,12 +359,12 @@ export default function Products() {
             >
               <span
                 className={`truncate ${
-                  catParentSlug
+                  activeTopSlug
                     ? "font-medium text-secondary-900"
                     : "text-secondary-700"
                 }`}
               >
-                {categories.find((c) => c.slug === catParentSlug)?.name ||
+                {categories.find((c) => c.slug === activeTopSlug)?.name ||
                   "All Categories"}
               </span>
               <ChevronDown
@@ -341,75 +381,42 @@ export default function Products() {
                     setShowCatDropdown(false);
                   }}
                   className={`w-full truncate px-3 py-1.5 text-left text-xs transition-colors ${
-                    !catParentSlug
+                    !activeTopSlug
                       ? "bg-secondary font-medium text-primary"
                       : "text-secondary-900 hover:bg-secondary"
                   }`}
                 >
                   All Categories
                 </button>
-                {categories
-                  .filter((c) => !c.parent_id)
-                  .map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        updateFilter("category", cat.slug);
-                        setShowCatDropdown(false);
-                      }}
-                      className={`w-full truncate px-3 py-1.5 text-left text-xs transition-colors ${
-                        catParentSlug === cat.slug
-                          ? "bg-secondary font-medium text-primary"
-                          : "text-secondary-900 hover:bg-secondary"
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      updateFilter("category", cat.slug);
+                      setShowCatDropdown(false);
+                    }}
+                    className={`w-full truncate px-3 py-1.5 text-left text-xs transition-colors ${
+                      activeTopSlug === cat.slug
+                        ? "bg-secondary font-medium text-primary"
+                        : "text-secondary-900 hover:bg-secondary"
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {(() => {
-            const parent = categories.find((c) => c.slug === catParentSlug);
-            const subs = parent?.children || [];
-            if (!parent || subs.length === 0) return null;
-            return (
-              <div className="flex flex-col gap-1">
-                {subs.map((sub) => {
-                  const subActive = filters.category === sub.slug;
-                  return (
-                    <button
-                      key={sub.id}
-                      onClick={() =>
-                        updateFilter(
-                          "category",
-                          subActive ? parent.slug : sub.slug,
-                        )
-                      }
-                      className={`flex w-full items-center gap-2 truncate rounded-lg px-3 py-1.5 text-left text-xs transition ${
-                        subActive
-                          ? "bg-primary text-white"
-                          : "text-secondary-800 hover:bg-secondary"
-                      }`}
-                    >
-                      {sub.image || sub.icon ? (
-                        <img
-                          src={sub.image || sub.icon}
-                          alt=""
-                          className="h-7 w-7 shrink-0 object-contain"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : null}
-                      <span className="truncate">{sub.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          {activeCategoryPath.length > 1 && (
+            <p className="text-[11px] font-medium text-secondary-800 leading-relaxed">
+              {activeCategoryPath.map((c) => c.name).join("  ›  ")}
+            </p>
+          )}
+
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-secondary-200 py-1 scrollbar-thin">
+            {renderCategoryTree(categories)}
+          </div>
         </div>
       </FilterSection>
 
