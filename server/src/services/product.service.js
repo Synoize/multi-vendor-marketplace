@@ -29,6 +29,45 @@ const generateUniqueSlug = async (baseSlug) => {
   return slug;
 };
 
+const BARCODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const VALID_BARCODE = /^[A-Z0-9-]{3,24}$/;
+
+/** Generate a scannable barcode value (Code 39 friendly: A-Z, 0-9, dash only). */
+const generateProductBarcode = () => {
+  let code = 'DM';
+  for (let i = 0; i < 8; i++) {
+    code += BARCODE_ALPHABET[Math.floor(Math.random() * BARCODE_ALPHABET.length)];
+  }
+  return code;
+};
+
+const normalizeBarcode = (value) => String(value ?? '').trim().toUpperCase();
+
+/** Return a barcode that is not already used by another product. */
+const uniqueBarcode = async (barcode, excludeId = null) => {
+  let code = barcode;
+  let params = [];
+  const build = (c) => {
+    params = [c];
+    let sql = 'SELECT id FROM products WHERE barcode = ?';
+    if (excludeId) { sql += ' AND id <> ?'; params.push(excludeId); }
+    return sql;
+  };
+  let sql = build(code);
+  while (await queryOne(sql, params)) {
+    code = generateProductBarcode();
+    sql = build(code);
+  }
+  return code;
+};
+
+/** Validate a vendor-supplied barcode string. */
+const assertValidBarcode = (barcode) => {
+  if (barcode && !VALID_BARCODE.test(barcode)) {
+    throw Object.assign(new Error('Barcode must be 3-24 characters using A-Z, 0-9 or -'), { statusCode: 400 });
+  }
+};
+
 /** Coerce a value to a TINYINT bit (1/0). Missing/falsy-string aware. */
 const toBit = (v) => (v === false || v === 0 || v === '0' || v === 'false' ? 0 : 1);
 
@@ -45,24 +84,29 @@ const normalizeVideo = (url, type) => {
 const createProduct = async (vendorId, data, imageFiles = []) => {
   const { name, description, short_description, price, mrp, cost_price, stock, category_id, brand_id,
     weight, dimensions, is_returnable, return_type, return_window, is_cod_available,
-    seo_title, seo_description, seo_keywords, tags, low_stock_threshold, variants, video_url, video_type } = data;
+    seo_title, seo_description, seo_keywords, tags, low_stock_threshold, variants, video_url, video_type, barcode: rawBarcode } = data;
 
   const slug = await generateUniqueSlug(createSlug(name));
   const cat = await queryOne('SELECT slug FROM categories WHERE id = ?', [category_id]);
   const sku = generateSKU(cat?.slug || 'GEN', vendorId);
+  const barcodeValue = normalizeBarcode(rawBarcode);
+  assertValidBarcode(barcodeValue);
+  const barcode = await uniqueBarcode(barcodeValue || generateProductBarcode());
   const productId = uuidv4();
   const video = normalizeVideo(video_url, video_type);
 
   await transaction(async (conn) => {
+    const finalReturnType = !is_returnable ? 'no_return' : (return_type || 'full_return');
+    const finalReturnWindow = !is_returnable ? 0 : (return_window || 7);
     await conn.execute(
       `INSERT INTO products (id, vendor_id, category_id, brand_id, name, slug, description, short_description,
-        price, mrp, cost_price, stock, sku, weight, dimensions, is_returnable, return_type, return_window,
+        price, mrp, cost_price, stock, sku, barcode, weight, dimensions, is_returnable, return_type, return_window,
         is_cod_available, seo_title, seo_description, seo_keywords, tags, low_stock_threshold, video_type, video_url, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [productId, vendorId, category_id, brand_id || null, name, slug, description || null,
-        short_description || null, price, mrp, cost_price || null, stock || 0, sku,
+        short_description || null, price, mrp, cost_price || null, stock || 0, sku, barcode,
         weight || null, dimensions ? JSON.stringify(dimensions) : null,
-        toBit(is_returnable), return_type || 'full_return', return_window || 7,
+        toBit(is_returnable), finalReturnType, finalReturnWindow,
         toBit(is_cod_available),
         seo_title || null, seo_description || null, seo_keywords || null,
         tags ? JSON.stringify(tags) : null, low_stock_threshold || 5,
@@ -113,7 +157,17 @@ const updateProduct = async (productId, vendorId, data, imageFiles = []) => {
   if (data.dimensions !== undefined) { updates.push('dimensions = ?'); params.push(JSON.stringify(data.dimensions)); }
   if (data.tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(data.tags)); }
   if (data.is_returnable !== undefined) { updates.push('is_returnable = ?'); params.push(toBit(data.is_returnable)); }
+  if (data.is_returnable !== undefined && !data.is_returnable) {
+    updates.push('return_type = ?'); params.push('no_return');
+    updates.push('return_window = ?'); params.push(0);
+  }
   if (data.is_cod_available !== undefined) { updates.push('is_cod_available = ?'); params.push(toBit(data.is_cod_available)); }
+  if (data.barcode !== undefined) {
+    const cleaned = normalizeBarcode(data.barcode);
+    assertValidBarcode(cleaned);
+    const barcode = await uniqueBarcode(cleaned || generateProductBarcode(), productId);
+    updates.push('barcode = ?'); params.push(barcode);
+  }
   if (data.video_url !== undefined || data.video_type !== undefined) {
     const video = normalizeVideo(data.video_url, data.video_type);
     updates.push('video_url = ?'); params.push(video.video_url);
@@ -373,22 +427,283 @@ const createVariant = async (productId, vendorId, data) => {
   };
 };
 
+// ═══ Bulk variant import (Excel) ═════════════════════════════════════════════
+
+const FIXED_VARIANT_FIELDS = new Set(["name", "sku", "price", "mrp", "stock", "image"]);
+const MAX_VARIANT_IMPORT_ROWS = 500;
+
+/** Canonical signature for an attribute object (order + whitespace independent). */
+const signatureOf = (attrs) =>
+  JSON.stringify(
+    Object.fromEntries(
+      Object.keys(attrs || {})
+        .sort()
+        .map((k) => [k, String(attrs[k]).trim()])
+    )
+  );
+
+/** Coerce a spreadsheet cell to a finite number (strips ₹, commas, spaces). */
+const toNum = (value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  const n = Number(String(value).replace(/[₹,\s]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Normalize + validate a single variant row from a spreadsheet.
+ * `row.values` maps canonical column keys → cell values (attribute columns are
+ * the keys not in FIXED_VARIANT_FIELDS). Returns the normalized variant with
+ * an `errors` array (empty = valid).
+ */
+const buildVariantFromRow = (row, ctx) => {
+  const { existingBySig, existingSkus, batchSkus, batchSigs } = ctx;
+  const errors = [];
+  const attrs = {};
+
+  for (const [key, value] of Object.entries(row.values)) {
+    if (FIXED_VARIANT_FIELDS.has(key)) continue;
+    const v = String(value).trim();
+    if (v) attrs[key] = v;
+  }
+  if (!Object.keys(attrs).length) {
+    errors.push("At least one attribute (e.g. Color, Size) is required.");
+  }
+
+  const price = toNum(row.values.price);
+  if (price === null || price <= 0) {
+    errors.push("Price must be a positive number.");
+  } else if (!Number.isInteger(price * 100)) {
+    errors.push("Price must have at most 2 decimal places.");
+  }
+
+  const mrp = toNum(row.values.mrp);
+  if (mrp === null || mrp <= 0) {
+    errors.push("MRP must be a positive number.");
+  } else if (!Number.isInteger(mrp * 100)) {
+    errors.push("MRP must have at most 2 decimal places.");
+  } else if (price !== null && price > mrp) {
+    errors.push("Price cannot exceed MRP.");
+  }
+
+  let stock = 0;
+  if (row.values.stock !== undefined && row.values.stock !== "") {
+    const stockNum = toNum(row.values.stock);
+    if (stockNum === null || !Number.isInteger(stockNum) || stockNum < 0) {
+      errors.push("Stock must be a whole number 0 or more.");
+    } else {
+      stock = stockNum;
+    }
+  }
+
+  let sku = String(row.values.sku || "").trim().toUpperCase();
+  if (sku && !/^[A-Z0-9-]{3,100}$/.test(sku)) {
+    errors.push("SKU must be 3-100 characters using A-Z, 0-9 or -.");
+  } else if (sku) {
+    if (existingSkus.has(sku)) {
+      errors.push(`SKU "${sku}" is already used by another variant of this product.`);
+    }
+    if (batchSkus.has(sku)) {
+      errors.push(`SKU "${sku}" appears more than once in this file.`);
+    }
+    batchSkus.add(sku);
+  }
+
+  const signature = signatureOf(attrs);
+  if (Object.keys(attrs).length) {
+    if (existingBySig.has(signature)) {
+      const combo = Object.entries(attrs).map(([k, v]) => `${k}: ${v}`).join(", ");
+      errors.push(`A variant with ${combo} already exists on this product.`);
+    }
+    if (batchSigs.has(signature)) {
+      const combo = Object.entries(attrs).map(([k, v]) => `${k}: ${v}`).join(", ");
+      errors.push(`Duplicate row — ${combo} is repeated in this file.`);
+    }
+    batchSigs.add(signature);
+  }
+
+  let name = String(row.values.name || "").trim();
+  if (!name) {
+    const entries = Object.entries(attrs);
+    if (entries.length) {
+      if (entries.length === 1) {
+        name = String(entries[0][1]);
+      } else {
+        name = `${entries[0][1]} / ${entries.slice(1).map(([k, v]) => `${k}: ${v}`).join(" / ")}`;
+      }
+    }
+  }
+
+  return {
+    rowNumber: row.rowNumber || 0,
+    name,
+    sku,
+    price,
+    mrp,
+    stock,
+    image: String(row.values.image || "").trim() || null,
+    attributes: attrs,
+    signature,
+    errors,
+  };
+};
+
+const loadVariantImportContext = async (productId) => {
+  const existingVariants = await queryRows(
+    "SELECT id, sku, attributes FROM product_variants WHERE product_id = ?",
+    [productId]
+  );
+  const existingBySig = new Set();
+  const existingSkus = new Set();
+  for (const v of existingVariants) {
+    if (v.attributes) existingBySig.add(signatureOf(safeParse(v.attributes)));
+    if (v.sku) existingSkus.add(String(v.sku).toUpperCase());
+  }
+  return { existingBySig, existingSkus, batchSkus: new Set(), batchSigs: new Set() };
+};
+
+/**
+ * Validate an uploaded variant spreadsheet for a vendor-owned product.
+ * Returns the full row-by-row report used by the preview screen.
+ */
+const previewVariantImport = async (productId, vendorId, parsedRows) => {
+  const product = await queryOne(
+    "SELECT id FROM products WHERE id = ? AND vendor_id = ? AND deleted_at IS NULL",
+    [productId, vendorId]
+  );
+  if (!product) throw Object.assign(new Error("Product not found"), { statusCode: 404 });
+
+  const rows = parsedRows.slice(0, MAX_VARIANT_IMPORT_ROWS);
+  const ctx = await loadVariantImportContext(productId);
+  const report = rows.map((row) => buildVariantFromRow(row, ctx));
+
+  const attributeKeys = [];
+  for (const key of Object.keys(rows[0]?.values || {})) {
+    if (!FIXED_VARIANT_FIELDS.has(key) && !attributeKeys.includes(key)) attributeKeys.push(key);
+  }
+
+  return {
+    rows: report,
+    attributeKeys,
+    summary: {
+      total: report.length,
+      valid: report.filter((r) => r.errors.length === 0).length,
+      errors: report.filter((r) => r.errors.length > 0).length,
+      truncated: parsedRows.length > MAX_VARIANT_IMPORT_ROWS,
+    },
+  };
+};
+
+/**
+ * Insert validated variant rows into a vendor-owned product. Rows are
+ * re-validated server-side (the client preview output is never trusted) and
+ * inserted inside a single transaction. Returns a summary of what was imported.
+ */
+const bulkImportVariants = async (productId, vendorId, rows = []) => {
+  const product = await queryOne(
+    "SELECT id FROM products WHERE id = ? AND vendor_id = ? AND deleted_at IS NULL",
+    [productId, vendorId]
+  );
+  if (!product) throw Object.assign(new Error("Product not found"), { statusCode: 404 });
+
+  const ctx = await loadVariantImportContext(productId);
+  const toInsert = [];
+  const skipped = [];
+
+  for (const raw of rows.slice(0, MAX_VARIANT_IMPORT_ROWS)) {
+    const values = {
+      ...(raw.attributes || {}),
+      name: raw.name,
+      sku: raw.sku,
+      price: raw.price,
+      mrp: raw.mrp,
+      stock: raw.stock,
+      image: raw.image,
+    };
+    const result = buildVariantFromRow({ rowNumber: raw.rowNumber, values }, ctx);
+    if (result.errors.length) {
+      skipped.push({ rowNumber: result.rowNumber, name: result.name, errors: result.errors });
+      continue;
+    }
+    toInsert.push(result);
+  }
+
+  const created = [];
+  if (toInsert.length) {
+    await transaction(async (conn) => {
+      for (const r of toInsert) {
+        const variantId = uuidv4();
+        const sku = r.sku || generateSKU("VAR", vendorId);
+        await conn.execute(
+          `INSERT INTO product_variants (id, product_id, sku, name, attributes, price, mrp, stock, image)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [variantId, productId, sku, r.name, JSON.stringify(r.attributes), r.price, r.mrp, r.stock, r.image]
+        );
+        created.push({
+          id: variantId,
+          sku,
+          name: r.name,
+          attributes: r.attributes,
+          price: r.price,
+          mrp: r.mrp,
+          stock: r.stock,
+          image: r.image,
+          is_active: 1,
+        });
+      }
+    });
+  }
+
+  return { imported: created.length, skipped, variants: created };
+};
+
 const getVendorProducts = async (vendorId, filters = {}) => {
   const { page = 1, limit = 20, status, search } = filters;
   const { offset } = getPagination({ page, limit });
   const conditions = ['p.vendor_id = ?', 'p.deleted_at IS NULL'];
   const params = [vendorId];
   if (status) { conditions.push('p.status = ?'); params.push(status); }
-  if (search) { conditions.push('p.name LIKE ?'); params.push(`%${search}%`); }
+  if (search) { conditions.push('(p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)'); const q = `%${search}%`; params.push(q, q, q); }
   const where = conditions.join(' AND ');
   const products = await queryRows(
-    `SELECT p.id, p.name, p.slug, p.price, p.mrp, p.stock, p.status, p.rating, p.total_reviews, p.sale_count, p.sku,
+    `SELECT p.id, p.name, p.slug, p.price, p.mrp, p.stock, p.status, p.rating, p.total_reviews, p.sale_count, p.sku, p.barcode,
       (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image
      FROM products p WHERE ${where} ORDER BY p.created_at DESC LIMIT ? OFFSET ?`,
     [...params, limit, offset]
   );
   const [[{ total }]] = await query(`SELECT COUNT(*) as total FROM products p WHERE ${where}`, params);
   return { products, total, page, limit };
+};
+
+/** Vendor lookup of one of their own products by its barcode. Returns null when not found. */
+const getVendorProductByBarcode = async (vendorId, code) => {
+  if (!code) return null;
+  const product = await queryOne(
+    `SELECT p.id, p.name, p.slug, p.sku, p.barcode, p.price, p.mrp, p.stock, p.status,
+      p.description, p.short_description, p.is_returnable, p.return_window, p.return_type, p.weight,
+      (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image
+     FROM products p
+     WHERE p.barcode = ? AND p.vendor_id = ? AND p.deleted_at IS NULL`,
+    [code, vendorId]
+  );
+  if (!product) return null;
+  const images = await queryRows('SELECT url FROM product_images WHERE product_id = ? ORDER BY sort_order', [product.id]);
+  return { ...product, images };
+};
+
+/** Public lookup of an active product by its barcode. Returns null when not found. */
+const getProductByBarcode = async (code) => {
+  if (!code) return null;
+  return queryOne(
+    `SELECT p.id, p.name, p.slug, p.sku, p.barcode, p.price, p.mrp, p.stock, p.status, p.rating,
+      p.total_reviews, p.sale_count, p.short_description, p.is_returnable, p.return_window, p.return_type,
+      (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
+      c.name as category_name, v.store_name, v.id as vendor_id
+     FROM products p
+     LEFT JOIN categories c ON p.category_id = c.id
+     LEFT JOIN vendors v ON p.vendor_id = v.id
+     WHERE p.barcode = ? AND p.deleted_at IS NULL AND p.status = 'active'`,
+    [code]
+  );
 };
 
 const getLowStockProducts = async (vendorId, threshold = 5) =>
@@ -412,5 +727,7 @@ module.exports = {
   getFeaturedProducts, getTrendingProducts, getRelatedProducts, getRecentlyViewed,
   getSearchSuggestions, approveProduct, rejectProduct, blockProduct, unblockProduct, setFeaturedProduct,
   addProductImages, createVariant, getVendorProducts, getLowStockProducts,
+  getVendorProductByBarcode, getProductByBarcode, uniqueBarcode,
+  previewVariantImport, bulkImportVariants,
   getPriceStats,
 };

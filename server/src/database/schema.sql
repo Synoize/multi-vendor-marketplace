@@ -219,6 +219,7 @@ CREATE TABLE IF NOT EXISTS products (
   deleted_at          DATETIME        NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_products_slug (slug),
+  UNIQUE KEY uq_products_barcode (barcode),
   INDEX idx_products_vendor (vendor_id),
   INDEX idx_products_category (category_id),
   INDEX idx_products_brand (brand_id),
@@ -250,14 +251,70 @@ CREATE TABLE IF NOT EXISTS product_images (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
--- TABLE: product_variants
+-- TABLE: attribute_keys (catalog of variant attribute dimensions)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS attribute_keys (
+  id          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  name        VARCHAR(100)    NOT NULL COMMENT 'e.g. Color, Size, Weight',
+  slug        VARCHAR(120)    NOT NULL,
+  input_type  ENUM('select','text','number') NOT NULL DEFAULT 'select',
+  is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ak_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: attribute_values (predefined choices per attribute key)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS attribute_values (
+  id                INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  attribute_key_id  INT UNSIGNED    NOT NULL,
+  value             VARCHAR(100)    NOT NULL,
+  slug              VARCHAR(120)    NOT NULL,
+  sort_order        INT             NOT NULL DEFAULT 0,
+  is_active         TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_av_key_value (attribute_key_id, slug),
+  INDEX idx_av_key (attribute_key_id),
+  CONSTRAINT fk_av_key FOREIGN KEY (attribute_key_id) REFERENCES attribute_keys (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: product_variants (VARIANT GROUP - parent level)
+-- Each row is a variant group (e.g. "RED" with Color = Red).
+-- Price/MRP/stock/sku live on product_variant_skus, NOT here.
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS product_variants (
   id          CHAR(36)        NOT NULL DEFAULT (UUID()),
   product_id  CHAR(36)        NOT NULL,
+  name        VARCHAR(200)    NOT NULL COMMENT 'e.g. RED',
+  attributes  JSON            NOT NULL COMMENT '{color: "Red"}',
+  image       VARCHAR(500)    NULL,
+  is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_pv_product (product_id),
+  CONSTRAINT fk_pv_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLE: product_variant_skus (purchasable SKU combinations)
+-- Each SKU independently owns sku, attributes, price, mrp, stock,
+-- image and active status. SKU uniqueness is scoped to the variant
+-- group (variant -> product -> vendor) so different sellers can
+-- reuse their own SKU codes.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS product_variant_skus (
+  id          CHAR(36)        NOT NULL DEFAULT (UUID()),
+  variant_id  CHAR(36)        NOT NULL,
   sku         VARCHAR(100)    NOT NULL,
-  name        VARCHAR(200)    NOT NULL COMMENT 'e.g. Red / XL',
-  attributes  JSON            NOT NULL COMMENT '{color: "Red", size: "XL"}',
+  name        VARCHAR(200)    NOT NULL COMMENT 'e.g. RED-M',
+  attributes  JSON            NOT NULL COMMENT '{color: "Red", size: "M"}',
   price       DECIMAL(10,2)   NOT NULL,
   mrp         DECIMAL(10,2)   NOT NULL,
   stock       INT             NOT NULL DEFAULT 0,
@@ -266,9 +323,9 @@ CREATE TABLE IF NOT EXISTS product_variants (
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_pv_sku (sku),
-  INDEX idx_pv_product (product_id),
-  CONSTRAINT fk_pv_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+  UNIQUE KEY uq_pvs_sku (variant_id, sku),
+  INDEX idx_pvs_variant (variant_id),
+  CONSTRAINT fk_pvs_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
@@ -303,18 +360,21 @@ CREATE TABLE IF NOT EXISTS carts (
   id          CHAR(36)        NOT NULL DEFAULT (UUID()),
   user_id     CHAR(36)        NOT NULL,
   product_id  CHAR(36)        NOT NULL,
-  variant_id  CHAR(36)        NULL,
+  variant_id  CHAR(36)        NULL COMMENT 'Parent variant group (legacy/null-safe)',
+  sku_id      CHAR(36)        NULL COMMENT 'Exact purchasable SKU',
   quantity    INT             NOT NULL DEFAULT 1,
   saved_for_later TINYINT(1)  NOT NULL DEFAULT 0,
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_cart_item (user_id, product_id, variant_id),
+  UNIQUE KEY uq_cart_item (user_id, product_id, variant_id, sku_id),
   INDEX idx_cart_user (user_id),
   INDEX idx_cart_product (product_id),
+  INDEX idx_cart_sku (sku_id),
   CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_cart_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE,
-  CONSTRAINT fk_cart_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE SET NULL
+  CONSTRAINT fk_cart_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE SET NULL,
+  CONSTRAINT fk_cart_sku FOREIGN KEY (sku_id) REFERENCES product_variant_skus (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
@@ -408,10 +468,13 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id          CHAR(36)        NOT NULL,
   product_id        CHAR(36)        NOT NULL,
   vendor_id         CHAR(36)        NOT NULL,
-  variant_id        CHAR(36)        NULL,
+  variant_id        CHAR(36)        NULL COMMENT 'Parent variant group at purchase time',
+  sku_id            CHAR(36)        NULL COMMENT 'Exact SKU purchased',
+  sku               VARCHAR(100)    NULL COMMENT 'Snapshot of SKU code at order time',
+  attributes        JSON            NULL COMMENT 'Snapshot of selected SKU attributes at order time',
   product_name      VARCHAR(500)    NOT NULL COMMENT 'Snapshot at order time',
   product_image     VARCHAR(500)    NULL,
-  variant_name      VARCHAR(200)    NULL,
+  variant_name      VARCHAR(200)    NULL COMMENT 'Snapshot of SKU/variant name at order time',
   quantity          INT             NOT NULL DEFAULT 1,
   unit_price        DECIMAL(10,2)   NOT NULL,
   total_price       DECIMAL(12,2)   NOT NULL,
@@ -430,11 +493,13 @@ CREATE TABLE IF NOT EXISTS order_items (
   INDEX idx_oi_order (order_id),
   INDEX idx_oi_vendor (vendor_id),
   INDEX idx_oi_product (product_id),
+  INDEX idx_oi_sku (sku_id),
   INDEX idx_oi_status (status),
   CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
   CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products (id),
   CONSTRAINT fk_oi_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (id),
-  CONSTRAINT fk_oi_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE SET NULL
+  CONSTRAINT fk_oi_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE SET NULL,
+  CONSTRAINT fk_oi_sku FOREIGN KEY (sku_id) REFERENCES product_variant_skus (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────
@@ -1062,5 +1127,74 @@ ALTER TABLE vendors ADD COLUMN IF NOT EXISTS shiprocket_pickup_error TEXT NULL A
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS shiprocket_pickup_pincode VARCHAR(10) NULL AFTER shiprocket_pickup_error;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS shiprocket_pickup_address_hash VARCHAR(64) NULL AFTER shiprocket_pickup_pincode;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS shiprocket_pickup_verified TINYINT(1) NULL AFTER shiprocket_pickup_address_hash;
+
+-- ─────────────────────────────────────────────────────────────
+-- VARIANT ARCHITECTURE MIGRATION (idempotent tail)
+-- Re-run on every boot (like the vendor migrations above).
+--  1. New tables (variant groups already exist as product_variants).
+--  2. product_variant_skus / attribute_keys / attribute_values.
+--  3. sku_id columns on carts + order_items.
+-- Historical product_variants DATA migration + old column drop is
+-- handled by server/scripts/migrate-variants.js (run once).
+-- ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS attribute_keys (
+  id          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  name        VARCHAR(100)    NOT NULL COMMENT 'e.g. Color, Size, Weight',
+  slug        VARCHAR(120)    NOT NULL,
+  input_type  ENUM('select','text','number') NOT NULL DEFAULT 'select',
+  is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ak_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS attribute_values (
+  id                INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  attribute_key_id  INT UNSIGNED    NOT NULL,
+  value             VARCHAR(100)    NOT NULL,
+  slug              VARCHAR(120)    NOT NULL,
+  sort_order        INT             NOT NULL DEFAULT 0,
+  is_active         TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_av_key_value (attribute_key_id, slug),
+  INDEX idx_av_key (attribute_key_id),
+  CONSTRAINT fk_av_key FOREIGN KEY (attribute_key_id) REFERENCES attribute_keys (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS product_variant_skus (
+  id          CHAR(36)        NOT NULL DEFAULT (UUID()),
+  variant_id  CHAR(36)        NOT NULL,
+  sku         VARCHAR(100)    NOT NULL,
+  name        VARCHAR(200)    NOT NULL COMMENT 'e.g. RED-M',
+  attributes  JSON            NOT NULL COMMENT '{color: "Red", size: "M"}',
+  price       DECIMAL(10,2)   NOT NULL,
+  mrp         DECIMAL(10,2)   NOT NULL,
+  stock       INT             NOT NULL DEFAULT 0,
+  image       VARCHAR(500)    NULL,
+  is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_pvs_sku (variant_id, sku),
+  INDEX idx_pvs_variant (variant_id),
+  CONSTRAINT fk_pvs_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE product_variants DROP INDEX IF EXISTS uq_pv_sku;
+ALTER TABLE product_variants ADD INDEX IF NOT EXISTS idx_pv_product (product_id);
+
+ALTER TABLE carts ADD COLUMN IF NOT EXISTS sku_id CHAR(36) NULL AFTER variant_id;
+ALTER TABLE carts ADD INDEX IF NOT EXISTS idx_cart_sku (sku_id);
+ALTER TABLE carts DROP INDEX IF EXISTS uq_cart_item;
+ALTER TABLE carts ADD UNIQUE KEY uq_cart_item (user_id, product_id, variant_id, sku_id);
+
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sku_id CHAR(36) NULL AFTER variant_id;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sku VARCHAR(100) NULL AFTER sku_id;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS attributes JSON NULL AFTER sku;
+ALTER TABLE order_items ADD INDEX IF NOT EXISTS idx_oi_sku (sku_id);
 
 SET FOREIGN_KEY_CHECKS = 1;

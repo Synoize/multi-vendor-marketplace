@@ -441,6 +441,13 @@ const getProducts = asyncHandler(async (req, res) => {
   sendPaginated(res, { ...result, message: 'Products fetched' });
 });
 
+/** GET /vendors/products/by-barcode/:code */
+const getProductByBarcode = asyncHandler(async (req, res) => {
+  const product = await productService.getVendorProductByBarcode(req.vendor.id, req.params.code);
+  if (!product) return sendError(res, 'No product found with this barcode', 404);
+  sendSuccess(res, product);
+});
+
 /** GET /vendors/orders */
 const getOrders = asyncHandler(async (req, res) => {
   const result = await orderService.getVendorOrders(req.vendor.id, req.query);
@@ -561,6 +568,7 @@ module.exports = {
   getKYCDocument,
   getDashboard,
   getProducts,
+  getProductByBarcode,
   getOrders,
   getPayouts,
   getAnalytics,

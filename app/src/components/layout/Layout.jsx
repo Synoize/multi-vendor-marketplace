@@ -68,6 +68,21 @@ export default function Layout() {
   ];
 
   const hideBottomNav =
+    pathname === "/about" ||
+    pathname === "/support" ||
+    pathname === "/contact" ||
+    pathname === "/terms" ||
+    pathname === "/privacy" ||
+    pathname === "/security" ||
+    pathname === "/cancellation-returns" ||
+    pathname === "/shipping" ||
+    pathname === "/payments" ||
+    pathname === "/docs" ||
+    pathname === "/faq" ||
+    pathname === "/sitemap" ||
+    pathname === "/advertise" ||
+    pathname === "/careers" ||
+    pathname === "/seller-register" ||
     pathname === "/cart" ||
     pathname === "/checkout" ||
     (pathname.startsWith("/products/") && pathname !== "/products");

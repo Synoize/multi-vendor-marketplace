@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,13 +12,18 @@ import {
   Filter,
   AlertTriangle,
   ChevronDown,
+  ScanLine,
+  Barcode,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useProductStore } from "../store/productStore";
+import { openProductBarcodeSticker } from "../lib/label";
 import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import DataTable from "../components/ui/DataTable";
+import Spinner from "../components/ui/Spinner";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All Status" },
@@ -28,6 +33,228 @@ const STATUS_OPTIONS = [
   { value: "out_of_stock", label: "Out of Stock" },
   { value: "blocked", label: "Blocked" },
 ];
+
+function ProductScanner({ onClose, onEditProduct }) {
+  const videoRef = useRef(null);
+  const resultRef = useRef(false);
+  const [manualInput, setManualInput] = useState("");
+  const [looking, setLooking] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const [cameraMode, setCameraMode] = useState("idle"); // 'running' | 'unsupported' | 'denied'
+  const cameraSupported = typeof window.BarcodeDetector !== "undefined";
+
+  const lookupCode = async (code) => {
+    const trimmed = String(code || "").trim();
+    if (!trimmed || looking || resultRef.current) return;
+    resultRef.current = true;
+    setLooking(true);
+    setError("");
+    try {
+      const product = await useProductStore.getState().fetchProductByBarcode(trimmed);
+      setResult(product);
+    } catch (e) {
+      resultRef.current = false;
+      setError(
+        e?.response?.data?.message || `No product found for "${trimmed}"`,
+      );
+    } finally {
+      setLooking(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    let stream = null;
+    let detector = null;
+
+    const stop = () => stream?.getTracks().forEach((t) => t.stop());
+
+    const startCamera = async () => {
+      if (!cameraSupported) {
+        setCameraMode("unsupported");
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        if (cancelled) {
+          stop();
+          return;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCameraMode("running");
+
+        const supportedFormats = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
+        const wanted = ["code_39", "code_128", "ean_13", "ean_8", "qr_code"];
+        const formats = wanted.filter((f) => supportedFormats.includes(f));
+        detector = new window.BarcodeDetector({ formats });
+
+        const tick = async () => {
+          if (cancelled || resultRef.current) return;
+          if (!videoRef.current || videoRef.current.readyState < 2) {
+            setTimeout(tick, 300);
+            return;
+          }
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes.length && codes[0].rawValue) {
+              lookupCode(codes[0].rawValue);
+              return;
+            }
+          } catch {}
+          setTimeout(tick, 350);
+        };
+        setTimeout(tick, 400);
+      } catch {
+        if (!cancelled) {
+          setCameraMode("denied");
+          setError(
+            "Camera is unavailable or blocked — use the manual field below.",
+          );
+        }
+      }
+    };
+
+    startCamera();
+    return () => {
+      cancelled = true;
+      stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraSupported]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+            <ScanLine className="w-4 h-4 text-primary" /> Scan Product Barcode
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-gray-100"
+            title="Close"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {cameraMode === "running" && (
+            <div className="relative rounded-xl overflow-hidden aspect-video bg-black">
+              <video
+                ref={videoRef}
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+              {looking && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <Spinner size="lg" />
+                </div>
+              )}
+            </div>
+          )}
+          {cameraMode === "unsupported" && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Camera scanning isn't supported in this browser. Use the manual
+              field below — works with a physical barcode scanner or pasting a
+              code.
+            </p>
+          )}
+
+          {result ? (
+            <div className="flex items-center gap-3 border border-gray-200 rounded-xl p-3">
+              {result.primary_image ? (
+                <img
+                  src={result.primary_image}
+                  alt={result.name}
+                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <Package className="w-6 h-6 text-gray-300" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm truncate">
+                  {result.name}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Barcode: {result.barcode || "—"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  SKU: {result.sku || "—"} · Stock: {result.stock ?? 0}
+                </p>
+                <p className="text-sm font-bold text-gray-900 mt-0.5">
+                  ₹{Number(result.price || 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <StatusBadge status={result.status || "inactive"} />
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                lookupCode(manualInput);
+              }}
+              className="flex gap-2"
+            >
+              <input
+                type="text"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                placeholder="Type / scan a barcode…"
+                className="w-full px-4 py-2.5 text-xs border rounded-xl outline-none focus:border-secondary-600 transition-all"
+              />
+              <button
+                type="submit"
+                disabled={looking}
+                className="px-5 py-2.5 bg-primary text-white text-xs font-medium rounded-xl hover:bg-opacity-90 transition-colors disabled:opacity-60"
+              >
+                Find
+              </button>
+            </form>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+        </div>
+
+        {result && (
+          <div className="flex gap-2 border-t border-gray-100 p-4">
+            <button
+              onClick={() => {
+                onEditProduct(result);
+                onClose();
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 bg-primary text-white text-xs font-medium rounded-xl py-2.5 hover:bg-opacity-90 transition-colors"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Open Product
+            </button>
+            <button
+              onClick={() => {
+                openProductBarcodeSticker(result);
+                toast.success("Barcode sticker opened — print or save as PDF");
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 border border-gray-300 text-gray-900 text-xs font-medium rounded-xl py-2.5 hover:bg-gray-100 transition-colors"
+            >
+              <Barcode className="w-3.5 h-3.5" /> Print Barcode
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Products() {
   const navigate = useNavigate();
@@ -42,6 +269,7 @@ export default function Products() {
   const [statusFilter, setStatusFilter] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const selectedStatus =
     STATUS_OPTIONS.find((opt) => opt.value === statusFilter) ||
@@ -130,6 +358,9 @@ export default function Products() {
               <p className="font-semibold truncate max-w-xs">{row.name}</p>
               <p className="text-xs text-secondary-700 mt-0.5">
                 SKU: {row.sku || "—"}
+              </p>
+              <p className="text-[11px] text-secondary-700">
+                Barcode: {row.barcode || "—"}
               </p>
             </div>
           </div>
@@ -254,6 +485,23 @@ export default function Products() {
             >
               <Trash2 className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => {
+                openProductBarcodeSticker(row);
+                toast.success(
+                  "Barcode sticker opened — print or save as PDF",
+                );
+              }}
+              disabled={!row.barcode && !row.sku}
+              className="p-2 rounded-lg hover:bg-secondary text-secondary-800 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                row.barcode || row.sku
+                  ? "Print barcode sticker"
+                  : "No barcode assigned yet"
+              }
+            >
+              <Barcode className="w-4 h-4" />
+            </button>
           </div>
         );
       },
@@ -293,6 +541,14 @@ export default function Products() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={() => setScannerOpen(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-xs font-medium shadow-sm transition hover:border-secondary-600"
+          title="Scan a barcode to find a product"
+        >
+          <ScanLine className="h-4 w-4 text-primary" />
+          Scan
+        </button>
         <form onSubmit={handleSearch} className="flex-1 flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary-700" />
@@ -396,6 +652,16 @@ export default function Products() {
         confirmLabel="Delete"
         variant="danger"
       />
+
+      {/* Barcode scanner dialog */}
+      {scannerOpen && (
+        <ProductScanner
+          onClose={() => setScannerOpen(false)}
+          onEditProduct={(product) =>
+            navigate(`/products/${product._id || product.id}/edit`)
+          }
+        />
+      )}
     </div>
   );
 }

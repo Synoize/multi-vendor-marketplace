@@ -9,6 +9,7 @@ const fs = require("fs");
 const config = require("config");
 const sharp = require("sharp");
 const { v4: uuidv4 } = require("uuid");
+const { sendError } = require("../utils/response.util");
 
 const maxFileSize = config.get("app.maxFileSize");
 const maxVideoFileSize = config.get("app.maxVideoFileSize");
@@ -260,6 +261,44 @@ const uploadProductMedia = (req, res, next) => {
   });
 };
 
+// Allowed Excel / spreadsheet MIME types (xlsx + csv only; exceljs cannot
+// parse the legacy .xls / .ods binary formats).
+const ALLOWED_SPREADSHEET_TYPES = [
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
+  "application/vnd.ms-excel", // csv (sometimes sent with this mimetype)
+  "application/csv",
+  "text/csv",
+];
+
+/** Verify an uploaded file is a .xlsx/.csv spreadsheet (by extension OR mimetype) */
+const isSpreadsheetFile = (file) => {
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  if ([".xlsx", ".csv"].includes(ext)) return true;
+  return ALLOWED_SPREADSHEET_TYPES.includes(file.mimetype);
+};
+
+/** Single Excel/CSV upload — buffered so the handler can parse it directly. */
+const uploadExcelMulter = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (isSpreadsheetFile(file)) return cb(null, true);
+    const err = new multer.MulterError("LIMIT_UNEXPECTED_FILE");
+    err.message = "Only .xlsx or .csv spreadsheets are allowed";
+    cb(err);
+  },
+}).single("file");
+
+const uploadExcel = (req, res, next) => {
+  uploadExcelMulter(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.file) {
+      return sendError(res, "Please upload an Excel file", 400);
+    }
+    next();
+  });
+};
+
 /** Single avatar upload */
 const uploadAvatar = multer({
   storage: createStorage("avatars"),
@@ -366,4 +405,5 @@ module.exports = {
   uploadStoreBranding: handleUpload(uploadStoreBranding),
   uploadReviewImages: handleUpload(uploadReviewImages),
   createGenericImageUploader,
+  uploadExcel,
 };

@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = [
   ],
   [
     "registered_address",
-    "Opposite Chubeji Katiya Bhandar, Gittikhadan Chowk, Nagpur, Maharashtra – 440013, India",
+    "53H4+3CH The Damini Edit, Opposite Chubeji Katiya Bhandar, Gittikhadan Chowk, Nagpur, Maharashtra – 440013, India",
     "Registered Office Address",
     "string",
   ],

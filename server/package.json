@@ -10,6 +10,7 @@
     "db:seed": "node src/database/run-seed.js",
     "db:fresh": "node src/database/fresh.js",
     "pickup:backfill": "node scripts/backfill-vendor-pickups.js",
+    "db:backfill-barcodes": "node scripts/backfill-product-barcodes.js",
     "test:ratelimit": "node test/rateLimit.test.js"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
     "config": "^3.3.11",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
     "express": "^4.18.3",
     "express-rate-limit": "^7.2.0",
     "express-validator": "^7.0.1",

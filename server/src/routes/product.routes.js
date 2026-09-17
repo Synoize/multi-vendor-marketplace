@@ -6,7 +6,7 @@ const express = require('express');
 const { protect, requireRole, optionalAuth } = require('../middlewares/auth.middleware');
 const { rateLimit } = require('../middlewares/rateLimit.middleware');
 const { attachVendor } = require('../middlewares/vendor.middleware');
-const { uploadProductImages, uploadProductMedia } = require('../middlewares/upload.middleware');
+const { uploadProductImages, uploadProductMedia, uploadExcel } = require('../middlewares/upload.middleware');
 const productController = require('../controllers/product.controller');
 
 const router = express.Router();
@@ -37,6 +37,9 @@ router.get('/pincode-lookup', rateLimit('read'), productController.lookupPincode
 /** GET /products/recently-viewed */
 router.get('/recently-viewed', protect, rateLimit('read'), productController.getRecentlyViewed);
 
+/** GET /products/by-barcode/:code */
+router.get('/by-barcode/:code', rateLimit('read'), productController.getProductByBarcode);
+
 /** GET /products/:slugOrId */
 router.get('/:slugOrId', optionalAuth, rateLimit('read'), productController.getProduct);
 
@@ -62,6 +65,15 @@ router.put('/variants/:variantId', protect, requireRole('vendor'), attachVendor,
 
 /** DELETE /products/variants/:variantId */
 router.delete('/variants/:variantId', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, productController.deleteVariant);
+
+/** GET /products/variants/template — download the bulk variant import Excel template */
+router.get('/variants/template', protect, requireRole('vendor'), attachVendor, rateLimit('read'), productController.downloadVariantTemplate);
+
+/** POST /products/:id/variants/preview — upload a spreadsheet and validate rows before importing */
+router.post('/:id/variants/preview', protect, requireRole('vendor'), attachVendor, rateLimit('upload'), productController.ensureProductNotBlocked, uploadExcel, productController.previewVariantImport);
+
+/** POST /products/:id/variants/bulk-import — insert validated variant rows en masse */
+router.post('/:id/variants/bulk-import', protect, requireRole('vendor'), attachVendor, rateLimit('upload'), productController.ensureProductNotBlocked, productController.bulkImportVariants);
 
 /** DELETE /products/images/:imageId */
 router.delete('/images/:imageId', protect, requireRole('vendor'), attachVendor, rateLimit('write'), productController.ensureProductNotBlocked, productController.deleteProductImage);

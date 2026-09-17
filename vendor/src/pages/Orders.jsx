@@ -7,6 +7,8 @@ import Spinner from "../components/ui/Spinner";
 import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
 import DataTable from "../components/ui/DataTable";
+import { useVendorStore } from "../store/vendorStore";
+import { openVendorReceipt, openPackingLabel } from "../lib/label";
 import {
   Search,
   ShoppingBag,
@@ -15,6 +17,8 @@ import {
   CheckCircle,
   StickyNote,
   X,
+  Receipt,
+  Package,
 } from "lucide-react";
 
 export default function Orders() {
@@ -45,6 +49,13 @@ export default function Orders() {
   const orders = data?.orders || [];
   const totalPages = Math.ceil((data?.total || 0) / pageSize);
 
+  const fetchProfile = useVendorStore((state) => state.fetchProfile);
+  const { data: vendorProfile } = useQuery({
+    queryKey: ["vendor-profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Status mutation
   const updateStatusMutation = useMutation({
     mutationFn: ({ orderId, action, body = {} }) => {
@@ -67,6 +78,30 @@ export default function Orders() {
 
   const handleDeliver = (orderId) => {
     updateStatusMutation.mutate({ orderId, action: "deliver" });
+  };
+
+  const printFeedback = (opened, label) => {
+    toast[opened ? "success" : "error"](
+      opened
+        ? `${label} opened — print or save as PDF`
+        : "Please allow pop-ups for this site",
+    );
+  };
+
+  const handleDownloadReceipt = () => {
+    if (!orderDetail) return;
+    printFeedback(
+      openVendorReceipt(orderDetail, vendorProfile || {}),
+      "Receipt",
+    );
+  };
+
+  const handlePackingLabel = () => {
+    if (!orderDetail) return;
+    printFeedback(
+      openPackingLabel(orderDetail, vendorProfile || {}),
+      "Packing label",
+    );
   };
 
   // Fetch full order detail when the detail modal is opened (auto-refresh for live status)
@@ -369,6 +404,22 @@ export default function Orders() {
                     </span>
                   </div>
                 )}
+
+                {/* Print actions */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleDownloadReceipt}
+                    className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    <Receipt className="h-4 w-4" /> Receipt
+                  </button>
+                  <button
+                    onClick={handlePackingLabel}
+                    className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    <Package className="h-4 w-4" /> Packing Label
+                  </button>
+                </div>
 
                 {/* Customer & Shipping */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

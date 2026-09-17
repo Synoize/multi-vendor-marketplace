@@ -628,7 +628,7 @@ export default function Home() {
           </section>
         )}
         {/* Best Sellers */}
-        {topDeals.length > 0 && (
+        {topDeals.length > 4 && (
           <section className="bg-primary-50 m-3 md:m-12 py-4 md:py-8 rounded-3xl md:rounded-[2rem]">
             <SectionHeader
               title="Best Sellers"

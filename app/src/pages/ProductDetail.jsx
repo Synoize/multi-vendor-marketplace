@@ -34,6 +34,7 @@ import { useProductStore } from "@/store/productStore";
 import { useWishlistStore } from "@/store/wishlistStore";
 import { useReviewStore } from "@/store/reviewStore";
 import ProductCard from "@/components/product/ProductCard";
+import VariantSelector from "@/components/product/VariantSelector";
 import { toast } from "sonner";
 import { compressImage, validateReviewImages } from "@/lib/compressImage";
 import api from "@/lib/axios";
@@ -656,7 +657,9 @@ export default function ProductDetail() {
                 className="h-5 w-5 text-secondary-900"
               />
             </button>
-            <span className="text-xs truncate max-w-[68%]">{product.name}</span>
+            <span className="text-sm font-medium truncate max-w-[68%]">
+              {product.name}
+            </span>
             <div className="flex items-center gap-3">
               <button onClick={handleShare} className="p-1">
                 <Send
@@ -784,12 +787,12 @@ export default function ProductDetail() {
 
           {/* Thumbnails */}
           {!variantImage && mediaCount > 1 && (
-            <div className="mt-1 px-3 pb-2">
+            <div className="mt-3 px-3 pb-2">
               <div className="flex gap-2.5 overflow-x-auto scrollbar-hide">
                 {hasVideo && (
                   <button
                     onClick={() => goToImage(0)}
-                    className={`flex-shrink-0 h-16 w-16 rounded-md overflow-hidden border transition-all bg-black relative ${
+                    className={`flex-shrink-0 h-16 w-16 rounded-xl overflow-hidden border transition-all bg-black relative ${
                       activeImage === 0 && "border-secondary-600"
                     }`}
                   >
@@ -813,7 +816,7 @@ export default function ProductDetail() {
                     <button
                       key={mediaIndex}
                       onClick={() => goToImage(mediaIndex)}
-                      className={`flex-shrink-0 h-16 w-16 rounded-md overflow-hidden border transition-all ${
+                      className={`flex-shrink-0 h-16 w-16 rounded-xl overflow-hidden border transition-all ${
                         activeImage === mediaIndex && "border-secondary-600"
                       }`}
                     >
@@ -887,29 +890,12 @@ export default function ProductDetail() {
         {/* Variant selector */}
         {product.variants?.length > 0 && (
           <div className="bg-white px-4 py-3">
-            <h3 className="text-xs font-semibold text-secondary-800 uppercase tracking-wider mb-2">
-              Select Variant
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {product.variants.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() =>
-                    setSelectedVariant(selectedVariant?.id === v.id ? null : v)
-                  }
-                  disabled={!v.stock}
-                  className={`px-3 py-2 text-xs border rounded-lg transition-all ${
-                    selectedVariant?.id === v.id
-                      ? "border-primary text-primary bg-blue-50 font-semibold"
-                      : "border-secondary-200 text-secondary-700"
-                  } ${!v.stock ? "opacity-40 line-through" : ""}`}
-                >
-                  {v.name}
-                  {v.price &&
-                    ` - ₹${parseFloat(v.price).toLocaleString("en-IN")}`}
-                </button>
-              ))}
-            </div>
+            <VariantSelector
+              variants={product.variants}
+              selectedVariant={selectedVariant}
+              onSelect={setSelectedVariant}
+              compact
+            />
           </div>
         )}
 
@@ -1068,10 +1054,7 @@ export default function ProductDetail() {
               </div>
             ) : (
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <PackageX
-                  strokeWidth={1.5}
-                  className="h-4 w-4 text-red-500"
-                />
+                <PackageX strokeWidth={1.5} className="h-4 w-4 text-red-500" />
                 <div>
                   <p className="text-[11px] font-semibold text-secondary-900">
                     No Returns
@@ -1491,18 +1474,17 @@ export default function ProductDetail() {
             {/* Image Gallery */}
             <div className="">
               <div className="bg-white sticky top-20">
-                <div className="relative aspect-square mb-3 flex items-center justify-center bg-secondary rounded overflow-hidden">
+                <div className="relative aspect-square mb-3 flex items-center justify-center bg-secondary rounded-xl overflow-hidden">
                   {!variantImage && hasVideo && activeImage === 0 ? (
                     <ProductVideo
                       url={product.video_url}
-                      className="absolute inset-0 w-full h-full"
+                      className="absolute inset-0 w-full h-full rounded-xl"
                     />
                   ) : (
                     <img
                       src={activeImageUrl}
                       alt={product.name}
-                      className="max-w-full max-h-full object-contain rounded hover:scale-105 transition-transform duration-300 cursor-zoom-in"
-                      style={{ maxHeight: "450px" }}
+                      className="p-2 w-full h-full object-contain rounded-3xl hover:scale-105 transition-transform duration-300 cursor-zoom-in"
                     />
                   )}
                   <button
@@ -1544,7 +1526,7 @@ export default function ProductDetail() {
                     {hasVideo && (
                       <button
                         onClick={() => setActiveImage(0)}
-                        className={`flex-shrink-0 w-20 h-20 border rounded overflow-hidden bg-black ${activeImage === 0 && "border-secondary-600"}`}
+                        className={`flex-shrink-0 w-20 h-20 border rounded-xl overflow-hidden bg-black ${activeImage === 0 && "border-secondary-600"}`}
                       >
                         {videoThumb ? (
                           <video
@@ -1566,7 +1548,7 @@ export default function ProductDetail() {
                         <button
                           key={mediaIndex}
                           onClick={() => setActiveImage(mediaIndex)}
-                          className={`flex-shrink-0 w-20 h-20 border rounded overflow-hidden ${activeImage === mediaIndex && "border-secondary-600"}`}
+                          className={`flex-shrink-0 w-20 h-20 border rounded-xl overflow-hidden ${activeImage === mediaIndex && "border-secondary-600"}`}
                         >
                           <img
                             src={img.url}
@@ -1743,31 +1725,11 @@ export default function ProductDetail() {
               {/* Variants */}
               {product.variants?.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="font-semibold text-sm text-secondary-950 mb-2">
-                    Available Options
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {product.variants.map((v) => (
-                      <button
-                        key={v.id}
-                        onClick={() =>
-                          setSelectedVariant(
-                            selectedVariant?.id === v.id ? null : v,
-                          )
-                        }
-                        disabled={!v.stock}
-                        className={`px-3 py-1.5 text-xs border rounded transition-all ${
-                          selectedVariant?.id === v.id
-                            ? "border-primary text-primary bg-blue-50 font-semibold"
-                            : "border-secondary-200 text-secondary-900 hover:border-primary"
-                        } ${!v.stock ? "opacity-40 cursor-not-allowed" : ""}`}
-                      >
-                        {v.name}{" "}
-                        {v.price &&
-                          `- ₹${parseFloat(v.price).toLocaleString("en-IN")}`}
-                      </button>
-                    ))}
-                  </div>
+                  <VariantSelector
+                    variants={product.variants}
+                    selectedVariant={selectedVariant}
+                    onSelect={setSelectedVariant}
+                  />
                 </div>
               )}
 

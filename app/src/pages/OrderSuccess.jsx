@@ -11,6 +11,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { useOrderStore } from "@/store/orderStore";
+import { openCustomerReceipt } from "@/lib/receipt";
+import { toast } from "sonner";
 
 export default function OrderSuccess() {
   const { id } = useParams();
@@ -155,6 +157,19 @@ export default function OrderSuccess() {
               >
                 <ShoppingBag className="h-4 w-4" /> View All Orders
               </Link>
+              <button
+                onClick={() => {
+                  const opened = openCustomerReceipt(order);
+                  toast[opened ? "success" : "error"](
+                    opened
+                      ? "Receipt opened — print or save as PDF"
+                      : "Please allow pop-ups for this site",
+                  );
+                }}
+                className="flex-1 flex items-center justify-center gap-2 border border-secondary-200 text-secondary-800 font-semibold py-3.5 rounded-xl text-sm hover:bg-secondary transition-colors"
+              >
+                <ReceiptText className="h-4 w-4" /> Download Receipt
+              </button>
               <button
                 onClick={() => navigate("/")}
                 className="flex-1 flex items-center justify-center gap-2 border border-secondary-200 text-secondary-800 font-semibold py-3.5 rounded-xl text-sm hover:bg-secondary transition-colors"

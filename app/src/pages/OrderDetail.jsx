@@ -18,15 +18,19 @@ import {
   Loader,
   Check,
   ExternalLink,
+  Star,
 } from "lucide-react";
 import { useOrderStore } from "@/store/orderStore";
+import { useReviewStore } from "@/store/reviewStore";
 import { useSettings } from "@/store/settingsStore";
 import { buildOrderThankyouUrl } from "@/lib/whatsapp";
+import { openCustomerReceipt } from "@/lib/receipt";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import Spinner from "@/components/ui/Spinner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ReviewModal from "@/components/review/ReviewModal";
 import whatsappIcon from "@/assets/whatsapp.png";
 
 const STATUS_STEPS = [
@@ -72,6 +76,8 @@ export default function OrderDetail() {
   const [returnItem, setReturnItem] = useState(null);
   const [returnType, setReturnType] = useState("return");
   const [returnReason, setReturnReason] = useState("");
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewChecking, setReviewChecking] = useState(false);
   const [returnDescription, setReturnDescription] = useState("");
   const [returnSubmitting, setReturnSubmitting] = useState(false);
 
@@ -103,7 +109,7 @@ export default function OrderDetail() {
           next.items = (prev.items || []).map((it) =>
             it.vendor_id === data.vendorId && data.itemStatus
               ? { ...it, status: data.itemStatus }
-              : it
+              : it,
           );
         }
         const t = data.tracking;
@@ -167,6 +173,8 @@ export default function OrderDetail() {
 
   const canReturn = (item) =>
     item.status === "delivered" &&
+    item.is_returnable !== false &&
+    item.is_returnable !== 0 &&
     item.return_type &&
     item.return_type !== "no_return" &&
     !!RETURN_TYPE_OPTIONS[item.return_type];
@@ -179,6 +187,28 @@ export default function OrderDetail() {
     setReturnType(opts[0] || "return");
     setReturnReason("");
     setReturnDescription("");
+  };
+
+  const openReview = async (item) => {
+    setReviewChecking(true);
+    try {
+      const eligibility = await useReviewStore
+        .getState()
+        .checkEligibility(item.product_id);
+      if (!eligibility?.canReview) {
+        toast.error(
+          eligibility?.alreadyReviewed
+            ? "You've already reviewed this product"
+            : "Only customers who bought this product can review it",
+        );
+        return;
+      }
+      setReviewTarget({ item, orderItemId: eligibility.orderItemId || item.id });
+    } catch {
+      toast.error("Could not check review eligibility");
+    } finally {
+      setReviewChecking(false);
+    }
   };
 
   const closeReturn = () => {
@@ -240,7 +270,7 @@ export default function OrderDetail() {
       </Helmet>
       <div className="max-w-6xl mx-auto min-h-[calc(100vh-120px)] px-4 py-4 sm:px-8 sm:py-8 lg:px-12 space-y-3 sm:space-y-4">
         <div className=" flex flex-col gap-2">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex flex-col md:flex-row items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
               {/* Header */}
               <div className="flex items-start justify-between gap-3">
@@ -254,7 +284,7 @@ export default function OrderDetail() {
                   </button>
 
                   <div className="min-w-0">
-                    <h1 className="truncate text-sm sm:text-lg font-semibold text-secondary-950">
+                    <h1 className="truncate text-xs sm:text-lg font-semibold text-secondary-950 max-w-[calc(100vw-180px)]">
                       Order #{order.order_number}
                     </h1>
 
@@ -314,9 +344,22 @@ export default function OrderDetail() {
                   {cancelling ? "Cancelling..." : "Cancel Order"}
                 </button>
               )}
-              {order.status === "delivered" && (
-                <button className="inline-flex items-center gap-1.5 border text-secondary-900 px-3 py-2 rounded-xl text-xs font-medium hover:bg-secondary transition-colors">
-                  <Download strokeWidth={1.5} className="h-4 w-4" /> Invoice
+              {!isCancelled && (
+                <button
+                  onClick={() => {
+                    const opened = openCustomerReceipt(order, {
+                      siteName:
+                        settings.site_name || "The Damini Edit Marketplace",
+                    });
+                    toast[opened ? "success" : "error"](
+                      opened
+                        ? "Receipt opened — print or save as PDF"
+                        : "Please allow pop-ups for this site",
+                    );
+                  }}
+                  className="inline-flex items-center gap-1.5 border text-secondary-900 px-3 py-2 rounded-xl text-xs font-medium hover:bg-secondary transition-colors"
+                >
+                  <Download strokeWidth={1.5} className="h-4 w-4" /> Receipt
                 </button>
               )}
               {!isCancelled && (
@@ -535,11 +578,15 @@ export default function OrderDetail() {
                   <p className="text-xs text-secondary-700 mt-0.5 line-clamp-1">
                     Sold by {item.vendor_name}
                   </p>
-                  {item.return_window && (
-                    <p className="text-[11px] text-green-600 mt-0.5 line-clamp-1">
-                      Return window: {item.return_window} days
-                    </p>
-                  )}
+                  {item.return_window &&
+                    item.return_type &&
+                    item.return_type !== "no_return" &&
+                    item.is_returnable !== false &&
+                    item.is_returnable !== 0 && (
+                      <p className="text-[11px] text-green-600 mt-0.5 line-clamp-1">
+                        Return window: {item.return_window} days
+                      </p>
+                    )}
                   <p className="text-xs font-medium text-secondary-800 mt-1.5">
                     Qty: {item.quantity} × ₹{fmtINR(item.unit_price)}
                   </p>
@@ -561,9 +608,21 @@ export default function OrderDetail() {
                       <RotateCcw className="h-3 w-3" /> Return
                     </button>
                   )}
-                  {item.status === "delivered" && item.return_type === "no_return" && (
-                    <span className="text-[11px] text-secondary-400">Not returnable</span>
+                  {item.status === "delivered" && (
+                    <button
+                      onClick={() => openReview(item)}
+                      disabled={reviewChecking}
+                      className="text-[11px] sm:text-xs text-amber-600 hover:underline inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      <Star className="h-3 w-3" /> Review
+                    </button>
                   )}
+                  {item.status === "delivered" &&
+                    item.return_type === "no_return" && (
+                      <span className="text-[11px] text-secondary-400">
+                        Not returnable
+                      </span>
+                    )}
                 </div>
               </div>
             ))}
@@ -662,7 +721,8 @@ export default function OrderDetail() {
                     rel="noreferrer"
                     className="text-primary font-semibold hover:underline inline-flex items-center gap-1"
                   >
-                    Track on courier site <ExternalLink className="h-3.5 w-3.5" />
+                    Track on courier site{" "}
+                    <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </p>
               )}
@@ -770,6 +830,26 @@ export default function OrderDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {reviewTarget && (
+        <ReviewModal
+          product={{
+            id: reviewTarget.item.product_id,
+            name: reviewTarget.item.product_name,
+            primary_image: reviewTarget.item.product_image,
+          }}
+          orderItemId={reviewTarget.orderItemId}
+          onClose={() => setReviewTarget(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({
+              queryKey: ["reviews", reviewTarget.item.product_id],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["review-eligibility", reviewTarget.item.product_id],
+            });
+          }}
+        />
       )}
     </>
   );

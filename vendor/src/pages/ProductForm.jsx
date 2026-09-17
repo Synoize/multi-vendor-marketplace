@@ -34,6 +34,8 @@ import api from "../lib/axios";
 import Spinner from "../components/ui/Spinner";
 import VariantManager from "../components/product/VariantManager";
 import VariantBuilder from "../components/product/VariantBuilder";
+import { code39Svg } from "../lib/barcode";
+import { flattenGroup } from "../lib/variantUtils";
 
 const productSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
@@ -54,6 +56,7 @@ const productSchema = z.object({
     .optional()
     .or(z.literal("")),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
   category: z.string().min(1, "Please select a category"),
   brand_id: z.string().optional(),
   tags: z.string().optional(),
@@ -185,8 +188,6 @@ const STEP_FIELDS = {
   catalog: ["category", "brand_id", "tags"],
   variants: [],
   additional: [
-    "description",
-    "short_description",
     "sku",
     "cost_price",
     "low_stock_threshold",
@@ -316,6 +317,7 @@ export default function ProductForm() {
       stock: 0,
       low_stock_threshold: 5,
       sku: "",
+      barcode: "",
       category: "",
       brand_id: "",
       tags: "",
@@ -445,6 +447,7 @@ export default function ProductForm() {
       stock: product.stock ?? product.quantity ?? 0,
       low_stock_threshold: product.low_stock_threshold ?? 5,
       sku: product.sku || "",
+      barcode: product.barcode || "",
       category: "",
       brand_id: product.brand_id || "",
       tags: Array.isArray(product.tags)
@@ -456,8 +459,14 @@ export default function ProductForm() {
       dim_height: product.dimensions?.height ?? "",
       is_returnable:
         product.is_returnable === 1 || product.is_returnable === true,
-      return_window: product.return_window || 7,
-      return_type: product.return_type || "full_return",
+      return_window:
+        product.is_returnable === 1 || product.is_returnable === true
+          ? product.return_window || 7
+          : 0,
+      return_type:
+        product.is_returnable === 1 || product.is_returnable === true
+          ? product.return_type || "full_return"
+          : "no_return",
       seo_title: product.seo_title || "",
       seo_description: product.seo_description || "",
       seo_keywords: product.seo_keywords || "",
@@ -590,6 +599,15 @@ export default function ProductForm() {
         formData.append(key, value);
       }
     });
+    ["description", "short_description"].forEach((field) => {
+      if (!formData.has(field)) formData.set(field, "");
+    });
+    if (!values.is_returnable) {
+      formData.set("return_type", "no_return");
+      formData.set("return_window", "0");
+    } else if (values.return_type === "no_return") {
+      formData.set("return_window", "0");
+    }
     formData.set("category", String(values.category || ""));
     if (Object.keys(dims).length) {
       formData.append("dimensions", JSON.stringify(dims));
@@ -607,14 +625,18 @@ export default function ProductForm() {
       formData.append("existing_images", JSON.stringify(existingImages));
     } else if (variants.length) {
       const files = [];
-      const safeVariants = variants.map((v) => {
+      const uploadedRefs = new Set();
+      const flatVariants = variants.flatMap((g) => flattenGroup(g));
+      const safeVariants = flatVariants.map((v) => {
         if (v?.image && typeof v.image === "object" && v.image.ref) {
           const entry = variantImageMap[v.image.ref];
-          if (entry?.file) {
+          if (entry?.file && !uploadedRefs.has(v.image.ref)) {
             files.push(entry.file);
-            return { ...v, image: "__VARIANT_IMAGE__" };
+            uploadedRefs.add(v.image.ref);
           }
-          return { ...v, image: null };
+          return uploadedRefs.has(v.image.ref)
+            ? { ...v, image: "__VARIANT_IMAGE__", _imageRef: v.image.ref }
+            : { ...v, image: null };
         }
         return v;
       });
@@ -680,7 +702,7 @@ export default function ProductForm() {
             className="space-y-5 lg:flex lg:items-start lg:gap-6"
           >
             {/* Step sidebar */}
-            <nav className="lg:w-56 lg:shrink-0">
+            <nav className="lg:w-56 lg:shrink-0 sticky top-5 lg:top-10 z-50">
               <div className="bg-white rounded-2xl shadow-sm border p-2 lg:p-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto">
                 <p className="px-2 pt-1 pb-2 text-[11px] font-semibold text-secondary-700 uppercase tracking-wide hidden lg:block">
                   Sections
@@ -1129,7 +1151,7 @@ export default function ProductForm() {
                         className={`resize-none ${inputClass}`}
                       />
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs sm:text-sm font-medium text-secondary-900 mb-1.5">
                           SKU
@@ -1140,6 +1162,34 @@ export default function ProductForm() {
                           className={inputClass}
                         />
                       </div>
+                      <div>
+                        <label className="block text-xs sm:text-sm font-medium text-secondary-900 mb-1.5">
+                          Barcode (optional)
+                        </label>
+                        <input
+                          {...register("barcode")}
+                          placeholder="Leave blank to auto-generate"
+                          className={inputClass}
+                        />
+                        {watchValues.barcode ? (
+                          <span
+                            className="mt-2 inline-block bg-white border border-secondary-200 rounded-lg p-1.5"
+                            dangerouslySetInnerHTML={{
+                              __html: code39Svg(watchValues.barcode, {
+                                height: 26,
+                                fontSize: 9,
+                              }),
+                            }}
+                          />
+                        ) : (
+                          <p className="text-[11px] text-secondary-700 mt-1">
+                            Used for packaging labels & scanning. Auto-generated
+                            if left blank.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs sm:text-sm font-medium text-secondary-900 mb-1.5">
                           Cost Price (₹)
@@ -1470,7 +1520,7 @@ export default function ProductForm() {
               {/* Variants */}
               {activeStep === 2 &&
                 (isEdit ? (
-                  <VariantManager productId={id} variants={variants} />
+                  <VariantManager productId={id} variants={variants} productName={product?.name} />
                 ) : (
                   <VariantBuilder
                     variants={variants}

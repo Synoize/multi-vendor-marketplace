@@ -8,6 +8,7 @@ const { query, queryOne, queryRows } = require('../database/connection');
 const { getPagination, getCursorPagination, encodeCursor } = require('../utils/pagination.util');
 const { v4: uuidv4 } = require('uuid');
 const notificationService = require('../services/notification.service');
+const { broadcastTicketMessage } = require('../socket/socket');
 
 // ─── BANNER ───────────────────────────────────────────────────────────────────
 
@@ -219,6 +220,13 @@ const replyToTicket = asyncHandler(async (req, res) => {
     'INSERT INTO ticket_messages (ticket_id, sender_id, sender_role, message) VALUES (?, ?, ?, ?)',
     [req.params.id, req.user.id, req.user.role, message]
   );
+  broadcastTicketMessage(req.params.id, {
+    ticket_id: req.params.id,
+    sender_id: req.user.id,
+    sender_role: req.user.role,
+    message,
+    created_at: new Date().toISOString(),
+  });
   if (req.user.role === 'admin') {
     await query("UPDATE support_tickets SET status = 'in_progress' WHERE id = ? AND status = 'open'", [req.params.id]);
     const ticket = await queryOne('SELECT user_id, subject FROM support_tickets WHERE id = ?', [req.params.id]);

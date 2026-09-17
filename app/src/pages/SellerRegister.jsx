@@ -1556,6 +1556,13 @@ export default function SellerRegister() {
                 {step < STEPS.length - 1 ? (
                   <button
                     onClick={() => {
+                      if (!isAuthenticated) {
+                        toast.error(
+                          "Please login first to register as a seller",
+                        );
+                        navigate("/login");
+                        return;
+                      }
                       if (!canNext()) {
                         toast.error(
                           `Please complete: ${getMissingFields().join(", ")}`,

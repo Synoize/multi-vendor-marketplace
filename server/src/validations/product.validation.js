@@ -28,7 +28,7 @@ const createProductSchema = z.object({
 
   description: z
     .string()
-    .min(10, 'Description must be at least 10 characters')
+    .max(5000, 'Description cannot exceed 5000 characters')
     .optional(),
 
   short_description: z
@@ -148,7 +148,7 @@ const updateProductSchema = z.object({
 
   description: z
     .string()
-    .min(10, 'Description must be at least 10 characters')
+    .max(5000, 'Description cannot exceed 5000 characters')
     .optional(),
 
   short_description: z

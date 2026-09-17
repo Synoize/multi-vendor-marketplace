@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
 import { useSupportStore } from "@/store/supportStore";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { getSocket } from "@/lib/socket";
 
 const CATEGORY_OPTIONS = [
   { value: "order", label: "Order Issue", icon: ShoppingCart },
@@ -83,6 +84,7 @@ export default function Support() {
   const [faqSearch, setFaqSearch] = useState("");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const categoryRef = useRef(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const handler = (e) => {
@@ -93,6 +95,23 @@ export default function Support() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Live chat updates: join the ticket room and refetch whenever a new
+  // message arrives so replies show up without a manual page refresh.
+  useEffect(() => {
+    if (!openTicket || !isAuthenticated) return;
+    const socket = getSocket();
+    socket.emit("join_ticket", openTicket);
+    const onNewMessage = () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket", openTicket] });
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    };
+    socket.on("new_message", onNewMessage);
+    return () => {
+      socket.off("new_message", onNewMessage);
+      socket.emit("leave_room", `ticket:${openTicket}`);
+    };
+  }, [openTicket, isAuthenticated, queryClient]);
 
   const { data: tickets = [], refetch } = useQuery({
     queryKey: ["tickets"],
@@ -137,6 +156,8 @@ export default function Support() {
     try {
       await useSupportStore.getState().replyTicket(openTicket, reply);
       setReply("");
+      queryClient.invalidateQueries({ queryKey: ["ticket", openTicket] });
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
       toast.success("Reply sent");
     } catch {
       toast.error("Failed to send reply");

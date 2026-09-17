@@ -27,7 +27,7 @@ INSERT INTO platform_settings (`key`, `value`, label, `type`) VALUES
 ('business_email',          'thedaminiedit3094@gmail.com', 'Business Enquiries Email', 'string'),
 ('support_phone',           '+91 8485833094', 'Support Phone',               'string'),
 ('whatsapp_number',         '918485833094', 'WhatsApp Number (with country code, no +)', 'string'),
-('registered_address',      'Opposite Chubeji Katiya Bhandar, Gittikhadan Chowk, Nagpur, Maharashtra – 440013, India', 'Registered Office Address', 'string'),
+('registered_address',      '53H4+3CH The Damini Edit, Opposite Chubeji Katiya Bhandar, Gittikhadan Chowk, Nagpur, Maharashtra – 440013, India', 'Registered Office Address', 'string'),
 ('gstin',                   '27AYDPT0267H1Z9', 'GSTIN',                                'string'),
 ('working_hours',           'Mon – Sat : 9:00 AM – 8:00 PM', 'Working Hours',         'string'),
 ('facebook_url',            'https://www.facebook.com/share/19YabhRKct/', 'Facebook URL', 'string'),
@@ -119,7 +119,7 @@ INSERT INTO banners (
 (
     'Big Billion Sale',
     'Up to 80% Off on Electronics',
-    '/uploads/banners/offers.png',
+    '/uploads/banners/offers_banner.png',
     '/products?category=electronics',
     'hero',
     1
@@ -127,10 +127,42 @@ INSERT INTO banners (
 (
     'Fashion Fiesta',
     'New Arrivals - Explore Latest Trends',
-    '/uploads/banners/shop.png',
-    '/products?category=fashion',
+    '/uploads/banners/hero_banner_1.jpeg',
+    '/products',
     'hero',
     2
+),
+(
+    'Mega Shopping Festival',
+    'Unmissable Deals on Your Everyday Favorites',
+    '/uploads/banners/hero_banner_2.jpeg',
+    '/products',
+    'hero',
+    3
+),
+(
+    'The Big Savings Sale',
+    'Amazing Deals, Exciting Prices & More',
+    '/uploads/banners/hero_banner_3.jpeg',
+    '/products',
+    'hero',
+    4
+),
+(
+    'Shop More, Save More',
+    'Exclusive Offers on Thousands of Products',
+    '/uploads/banners/hero_banner_4.jpeg',
+    '/products',
+    'hero',
+    5
+),
+(
+    'Weekend Super Sale',
+    'Your Favorite Products at Special Prices',
+    '/uploads/banners/hero_banner_5.jpeg',
+    '/products',
+    'hero',
+    6
 ),
 (
     'Home Makeover Sale',
@@ -138,7 +170,7 @@ INSERT INTO banners (
     'https://i.pinimg.com/736x/c1/e8/be/c1e8bea906468f598020752159ae7a5e.jpg',
     '/products?category=home-kitchen',
     'hero',
-    3
+    7
 ),
 (
     'Special Offer',
@@ -146,7 +178,7 @@ INSERT INTO banners (
     'https://i.pinimg.com/736x/77/ac/9b/77ac9b9a609a1492e72481eaa61d50b1.jpg',
     '/products',
     'offer',
-    1
+    8
 ),
 
 (
@@ -155,7 +187,7 @@ INSERT INTO banners (
     'https://images.pexels.com/photos/6214476/pexels-photo-6214476.jpeg',
     '/products',
     'offer',
-    1
+    9
 ),
 (
     'Top Electronics Deals',
@@ -163,7 +195,7 @@ INSERT INTO banners (
     'https://t4.ftcdn.net/jpg/03/05/42/55/240_F_305425502_dq9zZaubNl87udnBAdvXJkxD7QeTvt7P.jpg',
     '/products?category=electronics',
     'sidebar',
-    1
+    10
 ),
 (
     'Fashion Weekend Sale',
@@ -171,7 +203,7 @@ INSERT INTO banners (
     'https://i.pinimg.com/1200x/b2/8e/b5/b28eb5de80a169c4ac2a565a9966e31c.jpg',
     '/products?category=fashion',
     'sidebar',
-    2
+    11
 )
 ON DUPLICATE KEY UPDATE
     id = id;

@@ -31,6 +31,10 @@ fetchCategories: async () => {
     const { data } = await api.get(`/products/${id}`)
     return data?.data || data?.product || data
   },
+  fetchProductByBarcode: async (code) => {
+    const { data } = await api.get(`/vendors/products/by-barcode/${encodeURIComponent(code)}`)
+    return data?.data || data?.product || data
+  },
   createProduct: (formData) =>
     api.post('/products', formData),
   updateProduct: (id, formData) =>
@@ -40,6 +44,17 @@ fetchCategories: async () => {
   createVariant: (productId, payload) => api.post(`/products/${productId}/variants`, payload),
   updateVariant: (variantId, payload) => api.put(`/products/variants/${variantId}`, payload),
   deleteVariant: (variantId) => api.delete(`/products/variants/${variantId}`),
+  downloadVariantTemplate: async () => {
+    const { data } = await api.get('/products/variants/template', { responseType: 'blob' })
+    return data
+  },
+  previewVariantImport: (productId, file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post(`/products/${productId}/variants/preview`, fd)
+  },
+  bulkImportVariants: (productId, rows) =>
+    api.post(`/products/${productId}/variants/bulk-import`, { rows }),
   fetchBrands: async () => {
     const { data } = await api.get('/brands')
     return data?.data || data?.brands || data || []

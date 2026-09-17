@@ -2,10 +2,14 @@
  * Damini Marketplace - Product Controller
  */
 
+const path = require('path');
+const fs = require('fs/promises');
+const config = require('config');
 const { asyncHandler } = require('../middlewares/error.middleware');
 const { sendSuccess, sendCreated, sendError, sendPaginated } = require('../utils/response.util');
 const { query, queryOne } = require('../database/connection');
 const productService = require('../services/product.service');
+const { buildVariantTemplateBuffer, readSpreadsheetRows } = require('../utils/excel.util');
 
 /**
  * Vendor cannot modify a product that the admin has blocked.
@@ -118,6 +122,13 @@ const getProduct = asyncHandler(async (req, res) => {
   sendSuccess(res, product);
 });
 
+/** GET /products/by-barcode/:code */
+const getProductByBarcode = asyncHandler(async (req, res) => {
+  const product = await productService.getProductByBarcode(req.params.code);
+  if (!product) return sendError(res, 'No product found for this barcode', 404);
+  sendSuccess(res, product);
+});
+
 /** GET /products/:productId/related */
 const getRelatedProducts = asyncHandler(async (req, res) => {
   const products = await productService.getRelatedProducts(req.params.productId);
@@ -141,13 +152,25 @@ const createProduct = asyncHandler(async (req, res) => {
   const imageUrls = data.images || [];
   delete data.images;
   const variantImageFiles = Array.isArray(req.files?.variant_images) ? req.files.variant_images : [];
-  if (Array.isArray(data.variants) && variantImageFiles.length) {
+  if (Array.isArray(data.variants)) {
+    const refToFile = new Map();
     let imgIdx = 0;
     data.variants = data.variants.map((v) => {
       if (v && (v.image === '__VARIANT_IMAGE__' || v.image?.ref)) {
-        const file = variantImageFiles[imgIdx++];
-        if (file) return { ...v, image: `/uploads/products/${file.filename}` };
-        return { ...v, image: null };
+        let file = null;
+        if (v._imageRef) {
+          if (refToFile.has(v._imageRef)) {
+            file = refToFile.get(v._imageRef);
+          } else if (variantImageFiles[imgIdx]) {
+            file = variantImageFiles[imgIdx++];
+            refToFile.set(v._imageRef, file);
+          }
+        } else if (variantImageFiles[imgIdx]) {
+          file = variantImageFiles[imgIdx++];
+        }
+        const cleaned = { ...v };
+        delete cleaned._imageRef;
+        return { ...cleaned, image: file ? `/uploads/products/${file.filename}` : null };
       }
       return v;
     });
@@ -222,12 +245,44 @@ const updateVariant = asyncHandler(async (req, res) => {
 /** DELETE /products/variants/:variantId */
 const deleteVariant = asyncHandler(async (req, res) => {
   const owned = await queryOne(
-    'SELECT pv.id FROM product_variants pv JOIN products p ON pv.product_id = p.id WHERE pv.id = ? AND p.vendor_id = ?',
+    'SELECT pv.id, pv.image FROM product_variants pv JOIN products p ON pv.product_id = p.id WHERE pv.id = ? AND p.vendor_id = ?',
     [req.params.variantId, req.vendor.id]
   );
   if (!owned) return sendError(res, 'Variant not found', 404);
-  await query('UPDATE product_variants SET is_active = 0 WHERE id = ?', [req.params.variantId]);
-  sendSuccess(res, null, 'Variant deactivated');
+  await query('DELETE FROM product_variants WHERE id = ?', [req.params.variantId]);
+  if (owned.image && !owned.image.startsWith('http')) {
+    const file = path.join(process.cwd(), config.get('app.uploadDir'), 'products', path.basename(owned.image));
+    await fs.unlink(file).catch(() => { /* best-effort */ });
+  }
+  sendSuccess(res, null, 'Variant deleted');
+});
+
+/** GET /products/variants/template — download bulk import Excel template */
+const downloadVariantTemplate = asyncHandler(async (req, res) => {
+  const buffer = await buildVariantTemplateBuffer();
+  const filename = 'Damini-Variant-Import-Template.xlsx';
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(Buffer.from(buffer));
+});
+
+/** POST /products/:id/variants/preview — upload spreadsheet, validate, return preview */
+const previewVariantImport = asyncHandler(async (req, res) => {
+  if (!req.file) return sendError(res, 'Please upload an Excel file', 400);
+  const { rows } = await readSpreadsheetRows(req.file.buffer, req.file.originalname);
+  if (!rows.length) return sendError(res, 'The uploaded file contains no data rows', 400);
+  const report = await productService.previewVariantImport(req.params.id, req.vendor.id, rows);
+  sendSuccess(res, report, 'File preview');
+});
+
+/** POST /products/:id/variants/bulk-import — import validated variant rows */
+const bulkImportVariants = asyncHandler(async (req, res) => {
+  const { rows } = req.body;
+  if (!Array.isArray(rows) || !rows.length) {
+    return sendError(res, 'Provide at least one variant row to import', 400);
+  }
+  const result = await productService.bulkImportVariants(req.params.id, req.vendor.id, rows);
+  sendSuccess(res, result, `Imported ${result.imported} variant(s)`);
 });
 
 /** DELETE /products/images/:imageId */
@@ -338,6 +393,7 @@ module.exports = {
   getSearchSuggestions,
   getRecentlyViewed,
   getProduct,
+  getProductByBarcode,
   getRelatedProducts,
   createProduct,
   updateProductStatus,
@@ -345,6 +401,9 @@ module.exports = {
   createVariant,
   updateVariant,
   deleteVariant,
+  downloadVariantTemplate,
+  previewVariantImport,
+  bulkImportVariants,
   deleteProductImage,
   updateProduct,
   deleteProduct,

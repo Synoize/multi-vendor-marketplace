@@ -60,6 +60,9 @@ router.get('/dashboard', ...vendorProtect, rateLimit('read'), vendorController.g
 /** GET /vendors/products */
 router.get('/products', ...vendorProtect, rateLimit('read'), vendorController.getProducts);
 
+/** GET /vendors/products/by-barcode/:code */
+router.get('/products/by-barcode/:code', ...vendorProtect, rateLimit('read'), vendorController.getProductByBarcode);
+
 /** GET /vendors/orders */
 router.get('/orders', ...vendorProtect, rateLimit('read'), vendorController.getOrders);
 

@@ -611,9 +611,11 @@ export default function Navbar() {
                                 {sub.name}
                               </span>
                             </Link>
-                            <div className="p-2.5 mt-1 max-h-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-h-96 group-hover:opacity-100 bg-secondary-200 rounded-lg">
-                              <CategoryTreeLinks items={sub.children || []} />
-                            </div>
+                            {sub.children?.length > 0 && (
+                              <div className="p-2.5 mt-1 max-h-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-h-96 group-hover:opacity-100 bg-secondary-200 rounded-lg">
+                                <CategoryTreeLinks items={sub.children} />
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

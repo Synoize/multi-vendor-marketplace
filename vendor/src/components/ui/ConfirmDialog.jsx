@@ -43,6 +43,7 @@ export default function ConfirmDialog({
 
         <div className="flex items-center justify-end gap-3 mt-6">
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
@@ -50,6 +51,7 @@ export default function ConfirmDialog({
             {cancelLabel}
           </button>
           <button
+            type="button"
             onClick={onConfirm}
             disabled={loading}
             className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 ${confirmClasses}`}
