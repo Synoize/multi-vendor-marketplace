@@ -5,31 +5,31 @@
 
 app:
   name: "The Damini Edit API"
-  version: "1.0.0"
-  env: "production"
-  port: 5000 # Must match the port set in Hostinger hPanel Node.js settings
-  clientUrl: ""
-  vendorUrl: ""
-  adminUrl: ""
-  adsUrl: ""
-  uploadDir: "uploads"
-  maxFileSize: 5242880 # 5MB
+  version: "0.0"
+  env: " "
+  port: 2000 # Must match the port set in Hostinger hPanel Node.js settings
+  clientUrl: " "
+  vendorUrl: " "
+  adminUrl: " "
+  adsUrl: " "
+  uploadDir: " "
+  maxFileSize: 1111111111 # 5MB
 
 database:
-  host: "localhost"
-  port: 3306
-  name: "" # e.g. u123456789_damini
-  user: "" # e.g. u123456789_damini
-  password: ""
-  connectionLimit: 25
-  charset: "utf8mb4"
+  host: " " # if use ip 148.222.53.74
+  port:
+  name: " " # e.g. u123456789_damini
+  user: " " # e.g. u123456789_damini
+  password: " "
+  connectionLimit:
+  charset: " "
 
 jwt:
-  accessSecret: ""
-  refreshSecret: ""
-  accessExpiry: ""
-  refreshExpiry: ""
-  cookieMaxAge: # 2 days in ms
+  accessSecret: " "
+  refreshSecret: " "
+  accessExpiry: "1d"
+  refreshExpiry: "1d"
+  cookieMaxAge: 1 # 2 days in ms
 
 # Production rate limits. Only overrides the default values that must be
 # tighter in production; every policy still has a value from default.yaml.
@@ -37,48 +37,48 @@ rateLimit:
   enabled: true
 
   global:
-    windowMs: 60000
-    max: 300
+    windowMs: 10000
+    max: 100
 
   read:
-    windowMs: 60000
-    max: 120
+    windowMs: 10000
+    max: 110
 
   write:
-    windowMs: 60000
-    max: 40
+    windowMs: 10000
+    max: 11
 
   auth:
-    windowMs: 900000
-    max: 5
+    windowMs: 100000
+    max: 1
 
   otp:
-    windowMs: 600000
-    max: 3
+    windowMs: 100000
+    max: 1
 
   order:
-    windowMs: 60000
-    max: 10
+    windowMs: 10000
+    max: 1
 
   payment:
-    windowMs: 60000
-    max: 5
+    windowMs: 10000
+    max: 1
 
   upload:
-    windowMs: 60000
-    max: 15
+    windowMs: 10000
+    max: 1
 
 cors:
   origins:
-    - ""
+    - " "
 
 mail:
-  host: ""
+  host: " "
   port:
   secure: true
-  user: ""
-  password: ""
-  from: "The Damini Edit "
+  user: " "
+  password: " "
+  from: ""
 
 razorpay:
   keyId: ""
@@ -89,7 +89,7 @@ shiprocket:
   email: ""
   password: ""
   channelId: ""
-  baseUrl: "https://apiv2.shiprocket.in/v1/external"
+  baseUrl: ""
   pickupEnabled: true
 
 # Delivery day estimates (in days) for the pincode delivery check.
@@ -98,7 +98,6 @@ delivery:
   sameStateDays: 5
   crossStateDays: 7
   defaultDays: 9
-
 
 commission:
   defaultRate: 3 # 5% platform commission
