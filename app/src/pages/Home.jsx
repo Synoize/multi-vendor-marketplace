@@ -148,7 +148,8 @@ const SectionHeader = memo(function SectionHeader({
           to={link}
           className="flex items-center gap-1 text-secondary-900 hover:text-secondary-950 text-xs transition-colors"
         >
-          {linkText} <ChevronRight strokeWidth={1.5} className="h-4 w-4" />
+          <span className="hidden sm:inline">{linkText}</span>{" "}
+          <ChevronRight strokeWidth={1.5} className="h-4 w-4" />
         </Link>
       )}
     </div>
@@ -218,26 +219,27 @@ const OfferProductRow = memo(function OfferProductRow({ offer, index }) {
       <div className="flex items-center justify-between mb-4 md:mb-6 px-4 sm:px-10 lg:px-14">
         <div>
           <div className="flex items-center gap-2">
-            {badge && (
+            {/* {badge && (
               <span className="text-[10px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-full backdrop-blur uppercase tracking-wide">
                 {badge}
               </span>
-            )}
+            )} */}
             <h2 className="text-sm md:text-xl font-medium text-white">
               {offer.title}
             </h2>
           </div>
-          {offer.description && (
+          {/* {offer.description && (
             <p className="text-white/80 font-light text-[10px] md:text-xs mt-0.5 line-clamp-1">
               {offer.description}
             </p>
-          )}
+          )} */}
         </div>
         <Link
           to={`/offers/${offer.id}`}
           className="flex items-center gap-1 text-white text-xs transition-colors hover:text-white/80 text-nowrap"
         >
-          View All <ChevronRight strokeWidth={1.5} className="h-4 w-4" />
+          <span className="hidden sm:inline">View All</span>{" "}
+          <ChevronRight strokeWidth={1.5} className="h-4 w-4" />
         </Link>
       </div>
 
@@ -714,7 +716,7 @@ export default function Home() {
           <section className="bg-white">
             <SectionHeader
               title="Hot Offers & Promotions"
-              subtitle="Grab these exclusive deals"
+              // subtitle="Grab these exclusive deals"
             />
             <div className="px-3 sm:px-8 lg:px-12">
               <Swiper
@@ -755,18 +757,15 @@ export default function Home() {
                           <div className="absolute bottom-2 left-2 flex items-center gap-1 sm:gap-2 mb-1">
                             {offer.badge_text && (
                               <span className="text-[9px] sm:text-[10px] font-bold text-white bg-[#2874F0] px-1.5 sm:px-2 py-0.5 rounded">
-                                {offer.badge_text}
+                                {offer.type === "bogo"
+                                  ? `Buy ${offer.buy_quantity} Get ${offer.get_quantity}`
+                                  : offer.type === "percentage"
+                                    ? `${offer.discount_value}% Off`
+                                    : offer.type === "fixed"
+                                      ? `₹${offer.discount_value} Off`
+                                      : "Free Shipping"}
                               </span>
                             )}
-                            <span className="text-[9px] sm:text-[10px] font-semibold text-green-600 bg-green-50 px-1 sm:px-1.5 py-0.5 rounded">
-                              {offer.type === "bogo"
-                                ? `Buy ${offer.buy_quantity} Get ${offer.get_quantity}`
-                                : offer.type === "percentage"
-                                  ? `${offer.discount_value}% Off`
-                                  : offer.type === "fixed"
-                                    ? `₹${offer.discount_value} Off`
-                                    : "Free Shipping"}
-                            </span>
                           </div>
                         </div>
                       ) : (
@@ -776,11 +775,11 @@ export default function Home() {
                         <h3 className="text-xs sm:text-sm font-semibold text-secondary-950 line-clamp-1">
                           {offer.title}
                         </h3>
-                        {offer.description && (
+                        {/* {offer.description && (
                           <p className="text-[10px] sm:text-xs text-secondary-700 mt-0.5 line-clamp-2">
                             {offer.description}
                           </p>
-                        )}
+                        )} */}
                       </div>
                     </Link>
                   </SwiperSlide>

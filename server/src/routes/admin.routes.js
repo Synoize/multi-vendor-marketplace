@@ -37,6 +37,7 @@ router.patch('/users/:id/unban', adminController.unbanUser);
 
 // ─── Product Management ───────────────────────────────────────────────────────
 router.get('/products', adminController.listProducts);
+router.get('/products/:id', adminController.getProductById);
 
 // ─── Payouts ──────────────────────────────────────────────────────────────────
 router.get('/payouts', adminController.listPayouts);

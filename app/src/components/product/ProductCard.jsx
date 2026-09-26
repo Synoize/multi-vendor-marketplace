@@ -22,7 +22,11 @@ const RatingStars = memo(function RatingStars({ rating, size = "sm" }) {
   );
 });
 
-const ProductCard = memo(function ProductCard({ product, onWishlistChange, onClick }) {
+const ProductCard = memo(function ProductCard({
+  product,
+  onWishlistChange,
+  onClick,
+}) {
   const { isAuthenticated } = useAuthStore();
   const { addItem } = useCartStore();
   const {
@@ -101,7 +105,7 @@ const ProductCard = memo(function ProductCard({ product, onWishlistChange, onCli
     <Link
       to={`/products/${product.slug}`}
       onClick={onClick}
-      className="group bg-white rounded-sm border border-secondary-200 transition-all duration-300 overflow-hidden flex flex-col relative"
+      className="group bg-white rounded-2xl border border-secondary-200 transition-all duration-300 overflow-hidden flex flex-col relative"
     >
       {/* Discount Badge */}
       {discountPercent >= 5 && (
@@ -181,7 +185,7 @@ const ProductCard = memo(function ProductCard({ product, onWishlistChange, onCli
 
       {/* Product Info */}
       <div className="p-3 flex flex-col flex-1">
-        <p className="text-sm text-secondary-950 line-clamp-2 mb-1 leading-tight hover:shadow-sm">
+        <p className="text-xs md:text-sm text-secondary-950 line-clamp-2 mb-1 leading-tight hover:shadow-sm">
           {product.name}
         </p>
 

@@ -282,8 +282,7 @@ const submitKYC = asyncHandler(async (req, res) => {
   // ─── Completeness check (mirrors the 5-step seller registration) ────────────
   const storeComplete = !!(store_name && store_name.trim());
   const businessComplete = !!(business_name && business_name.trim()
-    && pan_number && pan_number.trim()
-    && gst_number && gstinRegex.test(gst_number.trim().toUpperCase()));
+    && pan_number && pan_number.trim());
   const emailVerified = !!(vendor && vendor.business_email_verified);
   const pickupComplete = !!(pickup_name && pickup_name.trim() && pickup_phone && pickup_phone.trim()
     && pickup_line1 && pickup_line1.trim() && pickup_city && pickup_city.trim()
@@ -291,13 +290,13 @@ const submitKYC = asyncHandler(async (req, res) => {
   const bankComplete = !!(bank_name && bank_name.trim() && account_number && account_number.trim()
     && ifsc_code && ifsc_code.trim() && account_holder && account_holder.trim());
 
-  const REQUIRED_DOCS = ['gst_certificate', 'pan_image', 'aadhar_image_front', 'aadhar_image_back', 'passport_photo', 'cancelled_cheque'];
+  const REQUIRED_DOCS = ['udyam_certificate', 'pan_image', 'aadhar_image_front', 'aadhar_image_back', 'passport_photo', 'cancelled_cheque'];
   const missingDocs = REQUIRED_DOCS.filter((d) => !(files[d]?.[0] || (vendor && vendor[d])));
 
   if (!storeComplete || !businessComplete || !emailVerified || !pickupComplete || !bankComplete || missingDocs.length) {
     const missing = [];
     if (!storeComplete) missing.push('store name');
-    if (!businessComplete) missing.push('business details (business name, PAN, valid GSTIN)');
+    if (!businessComplete) missing.push('business details (business name, PAN)');
     if (!emailVerified) missing.push('business email verification');
     if (!bankComplete) missing.push('bank details');
     if (!pickupComplete) missing.push('pickup address details (contact name, phone, address, city, state, pincode)');
@@ -308,6 +307,14 @@ const submitKYC = asyncHandler(async (req, res) => {
   const targetEmail = business_email || vendor?.business_email;
   if (!targetEmail) {
     return sendError(res, 'Business email is required', 400);
+  }
+
+  // Validate GST number format if provided (optional field)
+  if (gst_number && gst_number.trim()) {
+    const gstUpper = gst_number.trim().toUpperCase();
+    if (!gstinRegex.test(gstUpper)) {
+      return sendError(res, 'Invalid GSTIN format. Must be 15 characters: 2 digits (state) + 5 letters (PAN) + 4 digits + 1 letter + Z + 1 alphanumeric', 400);
+    }
   }
 
   // Create the vendor record now that the application is complete (new rows default to 'draft')

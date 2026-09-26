@@ -14,6 +14,13 @@ import {
   ShieldCheck,
   Star,
   Download,
+  Eye,
+  Image,
+  Tag,
+  Package,
+  Truck,
+  RotateCcw,
+  XCircle,
 } from "lucide-react";
 
 export default function Products() {
@@ -27,6 +34,23 @@ export default function Products() {
   const [rejectReason, setRejectReason] = useState("");
   const [blockTarget, setBlockTarget] = useState(null);
   const [unblockTarget, setUnblockTarget] = useState(null);
+  const [detailModal, setDetailModal] = useState(null);
+
+  const { data: productDetail, isLoading: isDetailLoading, isError, error } = useQuery({
+    queryKey: ["admin-product-detail", detailModal],
+    queryFn: async () => {
+      const res = await api.get(`/admin/products/${detailModal}`);
+      console.log('Product detail response:', res.data);
+      return res.data.data;
+    },
+    enabled: !!detailModal,
+    retry: false,
+  });
+
+  // Debug: log errors
+  if (isError) {
+    console.error('Product detail fetch error:', error);
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-products", activeTab, search, page, pageSize, sorting],
@@ -216,6 +240,13 @@ export default function Products() {
               <Check className="h-4 w-4" />
             </button>
           )}
+          <button
+            onClick={() => setDetailModal(row.id)}
+            className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition-colors"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
         </div>
       ),
     },
@@ -383,6 +414,291 @@ export default function Products() {
         confirmLabel="Unblock"
         variant="primary"
       />
+
+{/* Product Detail Modal */}
+      {detailModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setDetailModal(null)}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {isDetailLoading ? (
+              <div className="flex items-center justify-center p-12">
+                <Spinner size="lg" />
+              </div>
+            ) : productDetail ? (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    {productDetail.primary_image && (
+                      <img
+                        src={productDetail.primary_image}
+                        alt=""
+                        className="h-12 w-12 object-contain bg-gray-100 rounded-lg"
+                      />
+                    )}
+                    <div>
+                      <h2 className="font-bold text-lg text-gray-900 truncate max-w-md">
+                        {productDetail.name}
+                      </h2>
+                      <p className="text-xs text-gray-500">SKU: {productDetail.sku}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDetailModal(null)}
+                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <XCircle className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                  {/* Basic Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">Status</p>
+                      <p className="font-semibold text-gray-900 capitalize">
+                        {productDetail.status}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">Price</p>
+                      <p className="font-semibold text-gray-900">
+                        ₹{parseFloat(productDetail.price).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">MRP</p>
+                      <p className="font-semibold text-gray-900">
+                        ₹{parseFloat(productDetail.mrp).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">Stock</p>
+                      <p className="font-semibold text-gray-900">
+                        {productDetail.stock ?? "—"}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">Vendor</p>
+                      <p className="font-semibold text-gray-900 truncate">
+                        {productDetail.store_name || "—"}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">Category</p>
+                      <p className="font-semibold text-gray-900">
+                        {productDetail.category_name || "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {productDetail.description && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
+                      <p className="text-gray-600 text-sm whitespace-pre-wrap">
+                        {productDetail.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Images */}
+                  {productDetail.images && productDetail.images.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                        <Image className="h-4 w-4 text-gray-400" />
+                        Product Images ({productDetail.images.length})
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {productDetail.images.map((img, idx) => (
+                          <div key={img.id} className="relative aspect-square">
+                            <img
+                              src={img.url}
+                              alt={`Product image ${idx + 1}`}
+                              className="w-full h-full object-contain bg-gray-50 border border-gray-100 rounded-lg"
+                            />
+                            {img.is_primary && (
+                              <span className="absolute top-1 left-1 bg-primary text-white text-[10px] px-1.5 py-0.5 rounded">
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Variants */}
+                  {productDetail.variants && productDetail.variants.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                        <Package className="h-4 w-4 text-gray-400" />
+                        Variants ({productDetail.variants.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {productDetail.variants.map((variant) => (
+                          <div
+                            key={variant.id}
+                            className="border border-gray-200 rounded-xl p-4 bg-gray-50"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-900">
+                                {variant.name}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {JSON.stringify(variant.attributes)}
+                              </span>
+                            </div>
+                            {productDetail.variantSkus &&
+                              productDetail.variantSkus.length > 0 && (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                  {productDetail.variantSkus
+                                    .filter((s) => s.variant_id === variant.id)
+                                    .map((sku) => (
+                                      <div
+                                        key={sku.id}
+                                        className="bg-white rounded-lg p-3 border"
+                                      >
+                                        <p className="font-medium text-gray-900">
+                                          {sku.name}
+                                        </p>
+                                        <p className="text-gray-600">
+                                          ₹{parseFloat(sku.price).toLocaleString("en-IN")}
+                                        </p>
+                                        <p className="text-gray-500">
+                                          Stock: {sku.stock}
+                                        </p>
+                                        <p className="text-gray-500">
+                                          SKU: {sku.sku}
+                                        </p>
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vendor Details */}
+                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-blue-500" />
+                      Vendor & Pickup Details
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-400">Vendor Store</p>
+                        <p className="font-medium text-gray-900">
+                          {productDetail.store_name || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Vendor Owner</p>
+                        <p className="font-medium text-gray-900">
+                          {productDetail.vendor_owner_name || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Vendor Email</p>
+                        <p className="font-medium text-gray-900 truncate">
+                          {productDetail.vendor_owner_email || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Vendor Rating</p>
+                        <p className="font-medium text-gray-900">
+                          {productDetail.vendor_rating || "—"}
+                        </p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-gray-400">Pickup Address</p>
+                        <p className="font-medium text-gray-900">
+                          {productDetail.vendor_pickup_pincode
+                            ? `${productDetail.vendor_pickup_city || ""}, ${
+                                productDetail.vendor_pickup_state || ""
+                              } - ${productDetail.vendor_pickup_pincode}`
+                            : "Not configured"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tags & Dimensions */}
+                  {(productDetail.tags && productDetail.tags.length > 0) ||
+                  productDetail.dimensions ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {productDetail.tags && productDetail.tags.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                            <Tag className="h-4 w-4 text-gray-400" />
+                            Tags
+                          </h3>
+                          <div className="flex flex-wrap gap-2">
+                            {productDetail.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {productDetail.dimensions && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                            <RotateCcw className="h-4 w-4 text-gray-400" />
+                            Dimensions (cm)
+                          </h3>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                              <p className="text-xs text-gray-400">Length</p>
+                              <p className="font-medium">
+                                {productDetail.dimensions.length || "—"}
+                              </p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                              <p className="text-xs text-gray-400">Width</p>
+                              <p className="font-medium">
+                                {productDetail.dimensions.width || "—"}
+                              </p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                              <p className="text-xs text-gray-400">Height</p>
+                              <p className="font-medium">
+                                {productDetail.dimensions.height || "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
+                  <button
+                    onClick={() => setDetailModal(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

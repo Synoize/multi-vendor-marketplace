@@ -117,20 +117,12 @@ INSERT INTO banners (
     sort_order
 ) VALUES
 (
-    'Big Billion Sale',
-    'Up to 80% Off on Electronics',
-    '/uploads/banners/offers_banner.png',
-    '/products?category=electronics',
-    'hero',
-    1
-),
-(
     'Fashion Fiesta',
     'New Arrivals - Explore Latest Trends',
     '/uploads/banners/hero_banner_1.jpeg',
     '/products',
     'hero',
-    2
+    1
 ),
 (
     'Mega Shopping Festival',
@@ -138,7 +130,7 @@ INSERT INTO banners (
     '/uploads/banners/hero_banner_2.jpeg',
     '/products',
     'hero',
-    3
+    2
 ),
 (
     'The Big Savings Sale',
@@ -146,7 +138,7 @@ INSERT INTO banners (
     '/uploads/banners/hero_banner_3.jpeg',
     '/products',
     'hero',
-    4
+    3
 ),
 (
     'Shop More, Save More',
@@ -154,7 +146,7 @@ INSERT INTO banners (
     '/uploads/banners/hero_banner_4.jpeg',
     '/products',
     'hero',
-    5
+    4
 ),
 (
     'Weekend Super Sale',
@@ -162,15 +154,7 @@ INSERT INTO banners (
     '/uploads/banners/hero_banner_5.jpeg',
     '/products',
     'hero',
-    6
-),
-(
-    'Home Makeover Sale',
-    'Premium Furniture & Decor at Best Prices',
-    'https://i.pinimg.com/736x/c1/e8/be/c1e8bea906468f598020752159ae7a5e.jpg',
-    '/products?category=home-kitchen',
-    'hero',
-    7
+    5
 ),
 (
     'Special Offer',
@@ -178,7 +162,7 @@ INSERT INTO banners (
     'https://i.pinimg.com/736x/77/ac/9b/77ac9b9a609a1492e72481eaa61d50b1.jpg',
     '/products',
     'offer',
-    8
+    6
 ),
 
 (
@@ -187,7 +171,7 @@ INSERT INTO banners (
     'https://images.pexels.com/photos/6214476/pexels-photo-6214476.jpeg',
     '/products',
     'offer',
-    9
+    7
 ),
 (
     'Top Electronics Deals',
@@ -195,7 +179,7 @@ INSERT INTO banners (
     'https://t4.ftcdn.net/jpg/03/05/42/55/240_F_305425502_dq9zZaubNl87udnBAdvXJkxD7QeTvt7P.jpg',
     '/products?category=electronics',
     'sidebar',
-    10
+    8
 ),
 (
     'Fashion Weekend Sale',
@@ -203,7 +187,7 @@ INSERT INTO banners (
     'https://i.pinimg.com/1200x/b2/8e/b5/b28eb5de80a169c4ac2a565a9966e31c.jpg',
     '/products?category=fashion',
     'sidebar',
-    11
+    9
 )
 ON DUPLICATE KEY UPDATE
     id = id;

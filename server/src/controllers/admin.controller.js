@@ -410,6 +410,51 @@ const listProducts = asyncHandler(async (req, res) => {
   sendPaginated(res, { data: products, total, page: +page, limit: +limit });
 });
 
+/** GET /admin/products/:id — full product details for admin */
+const getProductById = asyncHandler(async (req, res) => {
+  const product = await queryOne(
+    `SELECT p.*,
+      c.name as category_name, c.slug as category_slug,
+      b.name as brand_name, b.logo as brand_logo,
+      v.store_name, v.store_logo, v.store_description, v.rating as vendor_rating, v.total_reviews as vendor_reviews, v.total_sales as vendor_total_sales,
+      v.pickup_pincode as vendor_pickup_pincode, v.pickup_city as vendor_pickup_city, v.pickup_state as vendor_pickup_state,
+      u.name as vendor_owner_name, u.email as vendor_owner_email
+     FROM products p
+     LEFT JOIN categories c ON p.category_id = c.id
+     LEFT JOIN brands b ON p.brand_id = b.id
+     LEFT JOIN vendors v ON p.vendor_id = v.id
+     LEFT JOIN users u ON v.user_id = u.id
+     WHERE p.id = ? AND p.deleted_at IS NULL`,
+    [req.params.id]
+  );
+  if (!product) return sendError(res, 'Product not found', 404);
+
+  const images = await queryRows('SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order', [product.id]);
+  const variants = await queryRows('SELECT * FROM product_variants WHERE product_id = ? AND is_active = 1', [product.id]);
+  const variantSkus = await queryRows(
+    `SELECT pvs.*, pv.name as variant_name
+     FROM product_variant_skus pvs
+     JOIN product_variants pv ON pvs.variant_id = pv.id
+     WHERE pv.product_id = ? AND pvs.is_active = 1`,
+    [product.id]
+  );
+
+  const safeParse = (value, fallback = {}) => {
+    if (value === null || value === undefined || value === '') return fallback;
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(value); } catch (e) { return fallback; }
+  };
+
+  sendSuccess(res, {
+    ...product,
+    images,
+    variants: variants.map(v => ({ ...v, attributes: safeParse(v.attributes) })),
+    variantSkus: variantSkus.map(s => ({ ...s, attributes: safeParse(s.attributes) })),
+    tags: safeParse(product.tags, []),
+    dimensions: safeParse(product.dimensions, null),
+  });
+});
+
 // ─── Payouts ──────────────────────────────────────────────────────────────────
 
 /** GET /admin/payouts */
@@ -682,6 +727,7 @@ module.exports = {
   banUser,
   unbanUser,
   listProducts,
+  getProductById,
   listPayouts,
   releasePayout,
   runPayoutCycle,

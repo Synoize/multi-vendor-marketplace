@@ -39,9 +39,12 @@ import { toast } from "sonner";
 import { compressImage, validateReviewImages } from "@/lib/compressImage";
 import api from "@/lib/axios";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { FreeMode } from "swiper/modules";
+import { FreeMode, Navigation, Thumbs, Keyboard, Zoom } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/free-mode";
+import "swiper/css/navigation";
+import "swiper/css/thumbs";
+import "swiper/css/zoom";
 import { getVideoEmbedUrl } from "@/lib/video";
 
 function ProductVideo({ url, className = "" }) {
@@ -119,6 +122,9 @@ export default function ProductDetail() {
   const drawerImgRef = useRef(null);
   const imageRef = useRef(null);
   const reviewFileRef = useRef(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const thumbsSwiperRef = useRef(null);
   const queryClient = useQueryClient();
 
   const { data: product, isLoading } = useQuery({
@@ -709,7 +715,13 @@ export default function ProductDetail() {
           {/* Main Slider */}
           <div className="relative">
             {variantImage ? (
-              <div className="aspect-square flex items-center justify-center bg-white p-3">
+              <div
+                className="aspect-square flex items-center justify-center bg-white p-3 cursor-zoom-in"
+                onClick={() => {
+                  setGalleryIndex(0);
+                  setGalleryOpen(true);
+                }}
+              >
                 <img
                   src={variantImage}
                   alt={selectedVariant?.name || product.name}
@@ -728,7 +740,13 @@ export default function ProductDetail() {
                 }}
               >
                 {hasVideo && (
-                  <div className="min-w-full snap-center aspect-square flex items-center justify-center bg-black p-0 overflow-hidden">
+                  <div
+                    className="min-w-full snap-center aspect-square flex items-center justify-center bg-black p-0 overflow-hidden cursor-zoom-in"
+                    onClick={() => {
+                      setGalleryIndex(0);
+                      setGalleryOpen(true);
+                    }}
+                  >
                     <ProductVideo
                       url={product.video_url}
                       className="w-full h-full object-contain"
@@ -740,7 +758,11 @@ export default function ProductDetail() {
                   return (
                     <div
                       key={mediaIndex}
-                      className="min-w-full snap-center aspect-square flex items-center justify-center bg-white p-3"
+                      className="min-w-full snap-center aspect-square flex items-center justify-center bg-white p-3 cursor-zoom-in"
+                      onClick={() => {
+                        setGalleryIndex(mediaIndex);
+                        setGalleryOpen(true);
+                      }}
                     >
                       <img
                         src={img.url}
@@ -752,14 +774,26 @@ export default function ProductDetail() {
                 })}
               </div>
             ) : hasVideo ? (
-              <div className="aspect-square flex items-center justify-center bg-black p-0 overflow-hidden">
+              <div
+                className="aspect-square flex items-center justify-center bg-black p-0 overflow-hidden cursor-zoom-in"
+                onClick={() => {
+                  setGalleryIndex(0);
+                  setGalleryOpen(true);
+                }}
+              >
                 <ProductVideo
                   url={product.video_url}
                   className="w-full h-full object-contain"
                 />
               </div>
             ) : (
-              <div className="aspect-square flex items-center justify-center bg-white p-3">
+              <div
+                className="aspect-square flex items-center justify-center bg-white p-3 cursor-zoom-in"
+                onClick={() => {
+                  setGalleryIndex(0);
+                  setGalleryOpen(true);
+                }}
+              >
                 <img
                   src={activeImageUrl}
                   alt={product.name}
@@ -2349,6 +2383,108 @@ export default function ProductDetail() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* Fullscreen Image Gallery */}
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-white"
+          onClick={() => setGalleryOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product image gallery"
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setGalleryOpen(false);
+            }}
+            className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/20 text-black"
+            aria-label="Close gallery"
+          >
+            <X strokeWidth={1.5} className="h-5 w-5" />
+          </button>
+
+          <Swiper
+            ref={thumbsSwiperRef}
+            modules={[Navigation, Thumbs, Keyboard, Zoom]}
+            spaceBetween={16}
+            slidesPerView="auto"
+            watchSlidesProgress={true}
+            slideToClickedSlide={true}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10"
+            style={{ maxWidth: "80%" }}
+          >
+            {hasVideo && (
+              <SwiperSlide className="h-16 w-16 flex-shrink-0">
+                <div className="relative aspect-square rounded overflow-hidden border border-white/20">
+                  {videoThumb ? (
+                    <video
+                      src={product.video_url}
+                      muted
+                      preload="metadata"
+                      className="w-full h-full object-conatin"
+                    />
+                  ) : (
+                    <span className="flex items-center justify-center w-full h-full text-white">
+                      <Play className="w-6 h-6 fill-current" />
+                    </span>
+                  )}
+                </div>
+              </SwiperSlide>
+            )}
+            {
+              !images.map((img, i) => (
+                <SwiperSlide
+                  key={mediaOffset + i}
+                  className="h-16 w-16 flex-shrink-0"
+                >
+                  <div className="relative aspect-square rounded overflow-hidden border border-white/20">
+                    <img
+                      src={img.url}
+                      alt={`${product.name} ${i + 1}`}
+                      className="w-full h-full object-conatin"
+                    />
+                  </div>
+                </SwiperSlide>
+              ))
+            }
+          </Swiper>
+
+          <Swiper
+            modules={[Navigation, Thumbs, Keyboard, Zoom]}
+            thumbs={{ swiper: thumbsSwiperRef.current }}
+            initialSlide={galleryIndex}
+            onSlideChange={(swiper) => setGalleryIndex(swiper.realIndex)}
+            allowTouchMove={true}
+            grabCursor={true}
+            zoom={true}
+            keyboard={true}
+            navigation={true}
+            className="absolute inset-0"
+          >
+            {hasVideo && (
+              <SwiperSlide className="flex items-center justify-center bg-black">
+                <ProductVideo
+                  url={product.video_url}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </SwiperSlide>
+            )}
+            {images.map((img, i) => (
+              <SwiperSlide
+                key={mediaOffset + i}
+                className="flex items-center justify-center bg-black"
+              >
+                <img
+                  src={img.url}
+                  alt={`${product.name} ${i + 1}`}
+                  className="max-w-full max-h-[85%] object-contain"
+                  data-swiper-zoom=""
+                />
+              </SwiperSlide>
+            ))}
+          </Swiper>
         </div>
       )}
     </>

@@ -118,7 +118,7 @@ export default function Layout() {
                 }
               >
                 <div className="relative">
-                  <Icon className="h-5 w-5" strokeWidth={1} />
+                  <Icon className={`h-6 w-6`} strokeWidth={1} />
                   {item.badge > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-accent px-1 text-[9px] font-bold leading-none text-white">
                       {item.badge > 99 ? "99+" : item.badge}

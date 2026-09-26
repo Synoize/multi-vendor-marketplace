@@ -319,7 +319,7 @@ const listProducts = async (filters = {}) => {
   const hasMore = products.length > effectiveLimit;
   if (hasMore) products.pop();
 
-  const [{ total }] = await query(
+  const [[{ total }]] = await query(
     `SELECT COUNT(*) as total FROM products p
      LEFT JOIN categories c ON p.category_id = c.id
      LEFT JOIN brands b ON p.brand_id = b.id

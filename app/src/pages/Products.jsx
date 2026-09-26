@@ -11,6 +11,7 @@ import {
   Star,
   ChevronRight,
   ChevronLeft,
+  Loader2,
 } from "lucide-react";
 import { useProductStore } from "@/store/productStore";
 import ProductCard from "@/components/product/ProductCard";
@@ -172,8 +173,14 @@ export default function Products() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams({ ...filters, cursor: nextCursor, limit: 20 });
-      const r = await useProductStore.getState().fetchProducts(params.toString());
+      const params = new URLSearchParams({
+        ...filters,
+        cursor: nextCursor,
+        limit: 20,
+      });
+      const r = await useProductStore
+        .getState()
+        .fetchProducts(params.toString());
       const pageData = r.data;
       setAllProducts((prev) => [...prev, ...(pageData.products || [])]);
       setNextCursor(pageData.nextCursor ?? null);
@@ -541,7 +548,7 @@ export default function Products() {
           <div className="flex-1 h-full flex flex-col">
             {/* Results Header */}
             <div
-              className={`mb-2 lg:mb-0 ${filters.category || filters.store_name || filters.min_rating ? "" : "mb-4 sm:mb-8"} flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between`}
+              className={`mb-2 lg:mb-0 ${bannerOpen && "sm:pb-4"} ${filters.category || filters.store_name || filters.min_rating ? "" : "mb-4 sm:mb-8"} flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between`}
             >
               {/* Left */}
               <div className="flex-1 min-w-0">
@@ -633,7 +640,7 @@ export default function Products() {
 
             {/* Category Banner */}
             {activeCategoryBanner && (
-              <div className={`relative ${bannerOpen && "sm:mt-4"}`}>
+              <div className={`relative`}>
                 <div
                   className={`flex justify-between gap-3 absolute z-20 ${bannerOpen && "p-2"}`}
                 >
@@ -697,7 +704,7 @@ export default function Products() {
                   )}
                 </div>
                 {bannerOpen && (
-                  <div className="relative mb-4 rounded-xl overflow-hidden">
+                  <div className="relative rounded-xl overflow-hidden">
                     <img
                       src={activeCategoryBanner}
                       alt="Category Banner"
@@ -719,7 +726,15 @@ export default function Products() {
               <SkeletonProductGrid count={12} />
             ) : products.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                <div
+                  className={`${
+                    !activeCategoryBanner
+                      ? "pt-0"
+                      : bannerOpen
+                        ? "pt-4"
+                        : "pt-10"
+                  } grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3`}
+                >
                   {products.map((p) => (
                     <ProductCard key={p.id} product={p} />
                   ))}
@@ -727,14 +742,17 @@ export default function Products() {
                 {/* Load More */}
                 {hasMore && (
                   <div className="flex items-center justify-center mt-8">
-                    <button
-                      onClick={loadMore}
-                      disabled={loadingMore}
-                      className="px-8 py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-full text-sm font-semibold transition-colors disabled:opacity-50"
-                    >
-                      {loadingMore
-                        ? "Loading..."
-                        : `Load More (${products.length}/${total || products.length})`}
+                    <button onClick={loadMore} disabled={loadingMore}>
+                      {loadingMore ? (
+                        <Loader2
+                          strokeWidth={1}
+                          className="w-5 h-5 animate-spin text-primary"
+                        />
+                      ) : (
+                        <span className="flex p-2 bg-primary-50">
+                          <ChevronDown strokeWidth={1} className="w-5 h-5" />
+                        </span>
+                      )}
                     </button>
                   </div>
                 )}

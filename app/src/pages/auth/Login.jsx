@@ -17,6 +17,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const {
     register,
     handleSubmit,
@@ -43,6 +44,12 @@ export default function Login() {
     };
   }, [referralCode]);
 
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
   const handleRequestOTP = async (data) => {
     if (referralStatus === "invalid") {
       toast.error("Invalid referral code. Please remove the invalid code from the URL and try again.");
@@ -53,6 +60,7 @@ export default function Login() {
       await useAuthStore.getState().requestLoginOtp(data.email, referralCode);
       setEmail(data.email);
       setStep("otp");
+      setResendIn(60);
       toast.success("OTP sent to your email address!");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to send OTP");
@@ -77,6 +85,17 @@ export default function Login() {
       toast.error(err.response?.data?.message || "Invalid or expired OTP");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendIn > 0 || loading) return;
+    try {
+      await useAuthStore.getState().requestLoginOtp(email);
+      setResendIn(60);
+      toast.success("OTP sent again");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to resend OTP");
     }
   };
 
@@ -263,15 +282,11 @@ export default function Login() {
                     Didn't receive the code?{" "}
                     <button
                       type="button"
-                      onClick={() =>
-                        useAuthStore
-                          .getState()
-                          .requestLoginOtp(email)
-                          .then(() => toast.success("OTP sent again"))
-                      }
-                      className="hover:underline text-secondary-950"
+                      onClick={handleResend}
+                      disabled={resendIn > 0}
+                      className="hover:underline text-secondary-950 disabled:no-underline disabled:text-secondary-800 disabled:cursor-not-allowed"
                     >
-                      Resend OTP
+                      {resendIn > 0 ? `Resend OTP in ${resendIn}s` : "Resend OTP"}
                     </button>
                   </p>
                 </div>

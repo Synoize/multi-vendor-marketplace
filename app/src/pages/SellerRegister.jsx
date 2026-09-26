@@ -38,6 +38,9 @@ import {
   SendHorizonal,
   XCircle,
   Loader,
+  PenLine,
+  PencilLine,
+  Pencil,
 } from "lucide-react";
 
 const STORAGE_KEY = "seller-register-draft";
@@ -89,9 +92,12 @@ export default function SellerRegister() {
   const [businessTypeOpen, setBusinessTypeOpen] = useState(false);
   const businessTypeRef = useRef(null);
   const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpResendIn, setEmailOtpResendIn] = useState(0);
   const [legalModal, setLegalModal] = useState(null);
   const [agreedTerms, setAgreedTerms] = useState(draft?.agreedTerms ?? false);
-  const [agreedPrivacy, setAgreedPrivacy] = useState(draft?.agreedPrivacy ?? false);
+  const [agreedPrivacy, setAgreedPrivacy] = useState(
+    draft?.agreedPrivacy ?? false,
+  );
   const [showForm, setShowForm] = useState(draft?.showForm ?? false);
 
   const vendorStatus = user?.vendor_status;
@@ -121,6 +127,12 @@ export default function SellerRegister() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+  useEffect(() => {
+    if (emailOtpResendIn <= 0) return;
+    const t = setTimeout(() => setEmailOtpResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [emailOtpResendIn]);
+
   const [form, setForm] = useState({
     business_name: draft?.form?.business_name || "",
     business_type: draft?.form?.business_type || "proprietorship",
@@ -174,7 +186,7 @@ export default function SellerRegister() {
     try {
       sessionStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ step, form, showForm, agreedTerms, agreedPrivacy })
+        JSON.stringify({ step, form, showForm, agreedTerms, agreedPrivacy }),
       );
     } catch {}
   }, [step, form, showForm, agreedTerms, agreedPrivacy]);
@@ -184,7 +196,7 @@ export default function SellerRegister() {
       try {
         sessionStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify({ step, form, showForm, agreedTerms, agreedPrivacy })
+          JSON.stringify({ step, form, showForm, agreedTerms, agreedPrivacy }),
         );
       } catch {}
     };
@@ -281,7 +293,8 @@ export default function SellerRegister() {
         return;
       }
       const type = (file.type || "").toLowerCase();
-      const isImageByExt = !type && /\.(jpe?g|png|webp|gif|heic|heif|pdf)$/i.test(file.name);
+      const isImageByExt =
+        !type && /\.(jpe?g|png|webp|gif|heic|heif|pdf)$/i.test(file.name);
       if (!ALLOWED_DOC_TYPES.includes(type) && !isImageByExt) {
         toast.error(
           `File "${file.name}" is not allowed. Use JPG, PNG, WebP, GIF, HEIC, or PDF.`,
@@ -305,8 +318,10 @@ export default function SellerRegister() {
       toast.error("Enter a valid business email address");
       return;
     }
+    if (emailOtpResendIn > 0) return;
     const result = await sendBusinessOtp(form.business_email);
     if (result.success) {
+      setEmailOtpResendIn(60);
       toast.success("OTP sent to business email");
     } else {
       toast.error(result.message);
@@ -326,6 +341,13 @@ export default function SellerRegister() {
     }
   };
 
+  const handleEditEmail = () => {
+    if (!emailVerified) return;
+    useVendorStore.setState({ emailVerified: false, otpSent: false });
+    setEmailOtp("");
+    toast.info("Business email unlocked. Please re-verify with a new OTP.");
+  };
+
   const handleSubmit = async () => {
     if (!agreedTerms || !agreedPrivacy) {
       toast.error(
@@ -336,14 +358,15 @@ export default function SellerRegister() {
     const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
     const missing = [];
     if (!form.store_name.trim()) missing.push("Store name");
+    if (!(form.business_name.trim() && form.pan_number.trim()))
+      missing.push("Business details (business name, PAN)");
+    // Validate GST format only if provided
     if (
-      !(
-        form.business_name.trim() &&
-        form.pan_number.trim() &&
-        gstinRegex.test(form.gst_number.trim().toUpperCase())
-      )
-    )
-      missing.push("Business details (business name, PAN, valid GST)");
+      form.gst_number.trim() &&
+      !gstinRegex.test(form.gst_number.trim().toUpperCase())
+    ) {
+      missing.push("Valid GST number");
+    }
     if (!emailVerified) missing.push("Business email verification");
     if (
       !(
@@ -420,10 +443,14 @@ export default function SellerRegister() {
     if (step === 0) return form.store_name.trim();
     if (step === 1) {
       const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+      // GST is optional but must be valid if provided
+      const gstValid =
+        !form.gst_number.trim() ||
+        gstinRegex.test(form.gst_number.trim().toUpperCase());
       return (
         form.business_name.trim() &&
         form.pan_number.trim() &&
-        gstinRegex.test(form.gst_number.trim().toUpperCase()) &&
+        gstValid &&
         emailVerified &&
         form.pickup_name.trim() &&
         form.pickup_phone.trim() &&
@@ -453,7 +480,11 @@ export default function SellerRegister() {
     } else if (step === 1) {
       if (!form.business_name.trim()) missing.push("Business name");
       if (!form.pan_number.trim()) missing.push("PAN number");
-      if (!gstinRegex.test(form.gst_number.trim().toUpperCase()))
+      // GST is optional but must be valid if provided
+      if (
+        form.gst_number.trim() &&
+        !gstinRegex.test(form.gst_number.trim().toUpperCase())
+      )
         missing.push("Valid GST number");
       if (!emailVerified) missing.push("Business email verification");
       if (!form.pickup_name.trim()) missing.push("Pickup contact name");
@@ -500,13 +531,13 @@ export default function SellerRegister() {
       key: "udyam_certificate",
       label: "Udyam Registration (MSME)",
       icon: File,
-      required: false,
+      required: true,
     },
     {
       key: "gst_certificate",
       label: "GST Registration Certificate",
       icon: FileText,
-      required: true,
+      required: false,
     },
     {
       key: "bank_passbook",
@@ -882,7 +913,7 @@ export default function SellerRegister() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-secondary-800 mb-1">
-                        GST Number *
+                        GST Number
                       </label>
                       <input
                         value={form.gst_number}
@@ -890,7 +921,7 @@ export default function SellerRegister() {
                           update("gst_number", e.target.value.toUpperCase())
                         }
                         maxLength={15}
-                        placeholder="15-digit GSTIN"
+                        placeholder="15-digit GSTIN (optional)"
                         className="w-full border rounded-lg px-3 sm:px-4 py-2.5 text-xs sm:text-sm uppercase outline-none focus:border-secondary-600"
                       />
                     </div>
@@ -927,70 +958,163 @@ export default function SellerRegister() {
                   {/* Business Email */}
                   <div>
                     <label className="block text-xs font-medium text-secondary-800 mb-1">
-                      Business Email*
+                      Business Email<span className="text-red-500">*</span>
                     </label>
-                    <div className="flex flex-wrap gap-2 items-center justify-between">
-                      <input
-                        value={form.business_email}
-                        onChange={(e) =>
-                          update("business_email", e.target.value)
-                        }
-                        placeholder="contact@yourbusiness.com"
-                        disabled={emailVerified}
-                        className="flex-1 border rounded-lg px-3 sm:px-4 py-2.5 text-xs sm:text-sm outline-none focus:border-secondary-600 disabled:bg-secondary disabled:text-secondary-800"
-                      />
-                      {!emailVerified && (
-                        <button
-                          type="button"
-                          onClick={handleSendEmailOtp}
-                          disabled={otpLoading || !form.business_email}
-                          className="flex items-center gap-1.5 px-3 sm:px-4 sm:py-3 py-2.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                        >
-                          {otpLoading ? (
-                            <div className="px-6">
-                              <Loader className="h-3.5 w-3.5 animate-spin" />
-                            </div>
-                          ) : otpSent ? (
-                            "Resend"
-                          ) : (
-                            <>
-                              <SendHorizonal className="h-3.5 w-3.5" /> Send OTP
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {emailVerified ? (
-                        <p className="flex items-center gap-1 text-xs text-green-600 font-medium ">
-                          <CheckCircle className="h-3.5 w-3.5" /> Verified
-                        </p>
-                      ) : (
-                        otpSent && (
-                          <div className="flex gap-2 items-center justify-between">
+
+                    <div
+                      className={`grid ${emailVerified ? "sm:grid-cols-1" : "sm:grid-cols-2"} w-full gap-3`}
+                    >
+                      {/* Email + Send OTP */}
+                      <div className="min-w-0 w-full">
+                        <div className="flex items-stretch gap-2">
+                          {/* Email Input */}
+                          <div className="relative flex-1 min-w-0">
                             <input
-                              value={emailOtp}
+                              type="email"
+                              value={form.business_email}
                               onChange={(e) =>
-                                setEmailOtp(
-                                  e.target.value.replace(/\D/g, "").slice(0, 6),
-                                )
+                                update("business_email", e.target.value)
                               }
-                              placeholder="Enter 6-digit OTP"
-                              maxLength={6}
-                              className="w-38 border rounded-lg px-3 py-2.5 text-xs sm:text-sm outline-none focus:border-secondary-600"
+                              placeholder="contact@yourbusiness.com"
+                              disabled={emailVerified}
+                              className="w-full
+              border border-gray-200 rounded-lg
+              px-3 sm:px-4 py-2.5
+              text-xs sm:text-sm
+              outline-none transition-all
+              focus:border-secondary-600
+              focus:ring-2 focus:ring-secondary-600/10
+              disabled:bg-gray-50
+              disabled:text-gray-500
+              disabled:cursor-not-allowed"
                             />
+
+                            {emailVerified && (
+                              <button
+                                type="button"
+                                onClick={handleEditEmail}
+                                title="Edit business email"
+                                aria-label="Edit business email"
+                                className="absolute right-1 top-1 p-2.5 inline-flex items-center gap-1 text-xs font-medium text-secondary-700 hover:text-primary transition-colors"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Send OTP / Verified */}
+                          {emailVerified ? (
+                            <div
+                              className="shrink-0 flex items-center justify-center
+              gap-1.5 sm:px-1.5 py-2.5"
+                            >
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+
+                              <span className="hidden sm:inline text-xs font-semibold text-green-700 whitespace-nowrap">
+                                Verified
+                              </span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendEmailOtp}
+                              disabled={
+                                otpLoading ||
+                                emailOtpResendIn > 0 ||
+                                !form.business_email
+                              }
+                              className="shrink-0
+              flex items-center justify-center
+              gap-1.5
+              px-3 sm:px-4 py-2.5
+              bg-primary text-white
+              rounded-lg
+              text-xs font-medium
+              hover:bg-primary/90
+              transition-all
+              disabled:opacity-50
+              disabled:cursor-not-allowed
+              whitespace-nowrap"
+                            >
+                              {otpLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : otpSent ? (
+                                emailOtpResendIn > 0 ? (
+                                  <span className="text-xs">
+                                    Resend in {emailOtpResendIn}s
+                                  </span>
+                                ) : (
+                                  "Resend"
+                                )
+                              ) : (
+                                "Send OTP"
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* OTP Verification */}
+                      {!emailVerified && otpSent && (
+                        <div className="min-w-0">
+                          <div className="flex items-stretch gap-2">
+                            {/* OTP Input */}
+                            <div className="flex-1 min-w-0">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                value={emailOtp}
+                                onChange={(e) =>
+                                  setEmailOtp(
+                                    e.target.value
+                                      .replace(/\D/g, "")
+                                      .slice(0, 6),
+                                  )
+                                }
+                                placeholder="Enter 6-digit OTP"
+                                maxLength={6}
+                                className="w-full
+                border border-gray-200
+                bg-white
+                rounded-lg
+                px-3 sm:px-4 py-2.5
+                text-xs sm:text-sm
+                tracking-[0.15em]
+                outline-none
+                transition-all
+                focus:border-secondary-600
+                focus:ring-2 focus:ring-secondary-600/10"
+                              />
+                            </div>
+
+                            {/* Verify */}
                             <button
                               type="button"
                               onClick={handleVerifyEmailOtp}
                               disabled={otpLoading || emailOtp.length < 6}
-                              className="flex items-center gap-1.5 px-3 sm:px-4 sm:py-3 py-2.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                              className="shrink-0
+              flex items-center justify-center
+              gap-1.5
+              px-3 sm:px-4 py-2.5
+              bg-green-600
+              text-white
+              rounded-lg
+              text-xs font-medium
+              hover:bg-green-700
+              transition-all
+              disabled:opacity-50
+              disabled:cursor-not-allowed
+              whitespace-nowrap"
                             >
                               {otpLoading ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 "Verify"
                               )}
                             </button>
                           </div>
-                        )
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1020,8 +1144,7 @@ export default function SellerRegister() {
                                   .replace(/\D/g, "")
                                   .slice(0, 6);
                                 update("pickup_pincode", val);
-                                if (val.length === 6)
-                                  lookupPickupPincode(val);
+                                if (val.length === 6) lookupPickupPincode(val);
                               }}
                               placeholder="6-digit"
                               inputMode="numeric"
@@ -1149,10 +1272,7 @@ export default function SellerRegister() {
                       <input
                         value={form.account_number}
                         onChange={(e) =>
-                          update(
-                            "account_number",
-                            e.target.value.toUpperCase(),
-                          )
+                          update("account_number", e.target.value.toUpperCase())
                         }
                         maxLength={20}
                         placeholder="Bank account number"

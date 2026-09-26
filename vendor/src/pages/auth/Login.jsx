@@ -41,7 +41,7 @@ export default function Login() {
       setEmail(trimmed);
       setOtp("");
       setStep("otp");
-      setResendIn(30);
+      setResendIn(60);
       toast.success("OTP sent to your email");
     } catch (err) {
       const msg =
@@ -58,7 +58,7 @@ export default function Login() {
     setServerError("");
     try {
       await requestOtp(email);
-      setResendIn(30);
+      setResendIn(60);
       toast.success("OTP resent to your email");
     } catch (err) {
       const msg =
