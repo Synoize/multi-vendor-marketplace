@@ -21,6 +21,11 @@ if (NODE_ENV === "production") {
   }
 }
 
+// Timezone the server stores/returns DATETIME values in. Cursor pagination
+// re-sends these values back as query params, so the offset is also needed by
+// the pagination util to rebuild a MySQL-castable datetime string.
+const DB_TIMEZONE = "+05:30";
+
 // Create connection pool
 // Env vars (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD) override
 // config files so credentials can be set in Hostinger without committing them.
@@ -38,7 +43,7 @@ const pool = mysql.createPool({
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
   idleTimeout: 10000,
-  timezone: "+05:30",
+  timezone: DB_TIMEZONE,
   dateStrings: false,
   multipleStatements: false,
 });
@@ -124,6 +129,7 @@ function getPool() {
 
 module.exports = {
   pool,
+  DB_TIMEZONE,
   query,
   queryRows,
   queryOne,

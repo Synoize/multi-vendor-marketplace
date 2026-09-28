@@ -56,6 +56,11 @@ const sendPaginated = (res, options) => {
     returns: options.returns,
     updates: options.updates,
     total,
+    // Keyset endpoints must expose the cursor inside `data` too, otherwise
+    // callers that unwrap `response.data` (the storefront does) lose it and the
+    // load-more button never renders.
+    ...(options.hasMore !== undefined && { hasMore: options.hasMore }),
+    ...(options.nextCursor !== undefined && { nextCursor: options.nextCursor }),
   };
 
   // Filter out undefined attributes
@@ -78,13 +83,21 @@ const sendPaginated = (res, options) => {
     ...(options.users && { users: options.users }),
     ...(options.returns && { returns: options.returns }),
     ...(options.updates && { updates: options.updates }),
+    // Cursor pagination fields are hoisted to the top level so callers can read
+    // them the same way they read `products`/`total`. The storefront load-more
+    // handlers read `data.hasMore` and `data.nextCursor` off the body root.
+    ...(options.hasMore !== undefined && { hasMore: options.hasMore }),
+    ...(options.nextCursor !== undefined && { nextCursor: options.nextCursor }),
     pagination: {
       total,
       page,
       limit,
       totalPages: Math.ceil(total / (limit || 20)) || 1,
-      hasNextPage: page * limit < total,
+      // Keyset endpoints report `page: 1` with no offset, so an explicit
+      // `hasMore` is the only accurate signal; fall back to offset math.
+      hasNextPage: options.hasMore !== undefined ? options.hasMore : page * limit < total,
       hasPrevPage: page > 1,
+      ...(options.hasMore !== undefined && { hasMore: options.hasMore }),
       ...(options.nextCursor !== undefined && { nextCursor: options.nextCursor }),
       ...(options.nextOffset !== undefined && { nextOffset: options.nextOffset }),
     },

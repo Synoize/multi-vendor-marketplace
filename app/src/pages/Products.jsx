@@ -41,6 +41,18 @@ const findCatPath = (nodes, slug, trail = []) => {
   return [];
 };
 
+/**
+ * `sendPaginated` returns the cursor fields on the body root, so they are lost
+ * as soon as the payload is unwrapped to `response.data`. Read both locations so
+ * the load-more state is always populated.
+ */
+const normalizePage = (body) => ({
+  products: body?.data?.products || [],
+  total: body?.total ?? body?.data?.total ?? 0,
+  hasMore: body?.data?.hasMore ?? body?.hasMore ?? false,
+  nextCursor: body?.data?.nextCursor ?? body?.nextCursor ?? null,
+});
+
 function FilterSection({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(
     filterOpenState[title] !== undefined ? filterOpenState[title] : defaultOpen,
@@ -149,7 +161,7 @@ export default function Products() {
     queryKey: ["products", baseParams],
     queryFn: async () => {
       const r = await useProductStore.getState().fetchProducts(baseParams);
-      return r.data;
+      return normalizePage(r);
     },
     keepPreviousData: true,
   });
@@ -181,10 +193,10 @@ export default function Products() {
       const r = await useProductStore
         .getState()
         .fetchProducts(params.toString());
-      const pageData = r.data;
-      setAllProducts((prev) => [...prev, ...(pageData.products || [])]);
-      setNextCursor(pageData.nextCursor ?? null);
-      setHasMore(pageData.hasMore ?? false);
+      const pageData = normalizePage(r);
+      setAllProducts((prev) => [...prev, ...pageData.products]);
+      setNextCursor(pageData.nextCursor);
+      setHasMore(pageData.hasMore);
     } catch {
       // keep existing state
     } finally {

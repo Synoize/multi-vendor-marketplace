@@ -528,21 +528,30 @@ const getStore = asyncHandler(async (req, res) => {
   const where = "p.vendor_id = ? AND p.status = 'active' AND p.deleted_at IS NULL";
   const baseParams = [vendor.id];
 
-  // Keyset predicate (order by is_featured DESC, created_at DESC; tie-break by id)
+  // Keyset predicate matching `ORDER BY is_featured DESC, created_at DESC, id DESC`.
+  // The cursor carries both the flag and the timestamp so the boundary rows of
+  // a featured/unfeatured split are not skipped or repeated.
   let keyset = '';
   const keysetParams = [];
   if (cursor) {
-    keyset = ` AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
-    keysetParams.push(cursor.value, cursor.value, cursor.id);
+    const flag = cursor.value?.f ?? 0;
+    const time = cursor.value?.t;
+    if (time !== undefined && time !== null) {
+      keyset = ` AND (p.is_featured < ? OR (p.is_featured = ? AND (
+                    p.created_at < ? OR (p.created_at = ? AND p.id < ?)
+                  )))`;
+      keysetParams.push(flag, flag, time, time, cursor.id);
+    }
   }
 
   const products = await queryRows(
     `SELECT p.id, p.name, p.slug, p.price, p.mrp, p.rating, p.total_reviews, p.stock, p.is_featured, p.sale_count,
-      (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image
+      (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
+      p.is_featured as sort_flag, p.created_at as sort_time
      FROM products p
      WHERE ${where}${keyset}
-     ORDER BY p.is_featured DESC, p.created_at DESC, p.id DESC
-     LIMIT ?`,
+      ORDER BY p.is_featured DESC, p.created_at DESC, p.id DESC
+      LIMIT ?`,
     [...baseParams, ...keysetParams, effectiveLimit + 1]
   );
 
@@ -555,7 +564,9 @@ const getStore = asyncHandler(async (req, res) => {
   );
 
   const last = products[products.length - 1];
-  const nextCursor = hasMore && last ? encodeCursor(last.created_at, last.id) : null;
+  const nextCursor = hasMore && last
+    ? encodeCursor({ f: last.sort_flag, t: last.sort_time }, last.id)
+    : null;
 
   sendSuccess(res, { ...vendor, products, totalProducts: countRow?.total || 0, limit: effectiveLimit, nextCursor, hasMore });
 });

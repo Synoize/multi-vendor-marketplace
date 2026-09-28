@@ -5,7 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useOfferStore } from "@/store/offerStore";
 import ProductCard from "@/components/product/ProductCard";
 import { SkeletonProductGrid } from "@/components/ui/SkeletonCard";
-import { Gift, ChevronLeft, ChevronRight, ShoppingBasket } from "lucide-react";
+import {
+  Gift,
+  ChevronLeft,
+  ChevronRight,
+  ShoppingBasket,
+  ChevronDown,
+} from "lucide-react";
 
 const PAGE_SIZE = 20;
 
@@ -192,9 +198,9 @@ export default function OfferProducts() {
               <div className="mt-8 flex justify-center">
                 <button
                   onClick={handleLoadMore}
-                  className="inline-flex items-center gap-2 rounded-xl border border-secondary-300 bg-white px-6 py-2.5 text-sm font-medium text-secondary-900 hover:border-primary hover:text-primary transition-colors"
+                  className="flex p-2 bg-primary-50"
                 >
-                  Load More <ChevronRight className="h-4 w-4" />
+                  <ChevronDown strokeWidth={1} className="w-5 h-5" />
                 </button>
               </div>
             )}

@@ -306,7 +306,8 @@ const listProducts = async (filters = {}) => {
   const products = await queryRows(
     `SELECT p.id, p.name, p.slug, p.price, p.mrp, p.rating, p.total_reviews, p.stock, p.is_featured, p.is_cod_available, p.sale_count,
       (SELECT url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
-      b.name as brand_name, v.store_name
+      b.name as brand_name, v.store_name,
+      p.${safeSort} as sort_value
      FROM products p
      LEFT JOIN categories c ON p.category_id = c.id
      LEFT JOIN brands b ON p.brand_id = b.id
@@ -327,7 +328,7 @@ const listProducts = async (filters = {}) => {
   );
 
   const last = products[products.length - 1];
-  const nextCursor = hasMore && last ? encodeCursor(last[safeSort], last.id, safeSort) : null;
+  const nextCursor = hasMore && last ? encodeCursor(last.sort_value, last.id, safeSort) : null;
 
   return { products, total: total || 0, page: 1, limit: parseInt(effectiveLimit), nextCursor, hasMore };
 };
